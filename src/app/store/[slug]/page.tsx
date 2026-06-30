@@ -49,6 +49,33 @@ type Product = {
 
 type CartItem = { product: Product; quantity: number };
 
+function loadStoreFont(fontName: string): Promise<void> {
+  if (!fontName) return Promise.resolve();
+  return new Promise((resolve) => {
+    const id = `gf-${fontName.replace(/\s+/g, "-")}`;
+    if (document.getElementById(id)) { resolve(); return; }
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, "+")}:wght@400;700&display=swap`;
+    link.onload = () => { document.fonts.ready.then(() => resolve()).catch(() => resolve()); };
+    link.onerror = () => resolve();
+    document.head.appendChild(link);
+  });
+}
+
+function preloadImages(urls: string[]): Promise<void> {
+  if (urls.length === 0) return Promise.resolve();
+  return Promise.allSettled(
+    urls.map((url) => new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      img.src = url;
+    }))
+  ).then(() => {});
+}
+
 export default function StorefrontPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -121,7 +148,7 @@ export default function StorefrontPage() {
     const data = userDoc.data() as any;
     const sellerId = userDoc.id;
 
-    setSeller({
+    const sellerData = {
       id: sellerId,
       name: data.name || "My Store",
       bio: data.bio || "",
@@ -131,9 +158,13 @@ export default function StorefrontPage() {
       razorpayKeyId: data.razorpayKeyId || "",
       allowCustomOrders: data.allowCustomOrders ?? false,
       storefront: data.storefront,
-    });
+    };
 
-    // Always load products (needed for fallback and ProductsSection)
+    setSeller(sellerData);
+
+    // Start font loading + fetch products in parallel
+    const fontLoaded = loadStoreFont(sellerData.storefront?.theme?.font || "");
+
     const q = query(
       collection(db, "users", sellerId, "products"),
       orderBy("createdAt", "desc")
@@ -145,6 +176,16 @@ export default function StorefrontPage() {
       if (p.inStock !== false) list.push({ id: d.id, ...p });
     });
     setProducts(list);
+
+    // Preload first 18 product thumbnails + seller photo while font loads in parallel
+    const thumbnails = [
+      sellerData.photoURL,
+      ...list.slice(0, 18).map((p) => p.photoURL),
+    ].filter(Boolean) as string[];
+    const imagesLoaded = preloadImages([...new Set(thumbnails)]);
+
+    // Wait for both font + first images before showing page
+    await Promise.allSettled([fontLoaded, imagesLoaded]);
     setLoading(false);
   }
 
