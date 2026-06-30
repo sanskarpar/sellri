@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Owner: full access to own user doc + all subcollections
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Public: read seller profile (for storefront & slug lookup)
+    match /users/{userId} {
+      allow read: if true;
+    }
+
+    // Public: read products on storefront
+    match /users/{userId}/products/{productId} {
+      allow read: if true;
+    }
+
+    // Phone index for sign-up
+    match /phoneNumbers/{phoneNumber} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
