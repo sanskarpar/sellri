@@ -7,7 +7,8 @@ import { db } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import ProductsSection, { ProductDetailModal } from "@/components/sections/ProductsSection";
 import FooterSection from "@/components/sections/FooterSection";
-import FormSection from "@/components/sections/FormSection";
+
+
 import useGoogleFont from "@/hooks/useGoogleFont";
 import { useLockBody } from "@/hooks/useLockBody";
 
@@ -297,7 +298,6 @@ export default function StorefrontPage() {
   if (isNewStructure) {
     const navbarConfig = seller.storefront!.navbar;
     const productsConfig = seller.storefront!.products || {};
-    const formConfig = seller.storefront!.form || {};
     const footerConfig = seller.storefront!.footer || {};
     const primaryColor = seller.storefront?.theme?.primaryColor || "#ff6b35";
     const pageFont = seller.storefront?.theme?.font || "";
@@ -330,13 +330,13 @@ export default function StorefrontPage() {
             logoTextColor: navbarConfig.logoTextColor || "#ffffff",
           }}
         />
-        <main className="min-h-screen" style={{
+        <main className="min-h-screen flex flex-col" style={{
           "--color-primary": primaryColor,
           ...(pageBgType === "color" ? { backgroundColor: pageBgColor } : {}),
           ...(pageBgType === "gradient" ? { background: pageBgGradient } : {}),
           ...(pageBgType === "image" && pageBgImage ? { backgroundImage: `url(${pageBgImage})`, backgroundSize: "100% auto", backgroundRepeat: "repeat-y" } : {}),
         } as React.CSSProperties}>
-          <div className="w-full mx-auto" style={{ maxWidth: 1200 }}>
+          <div className="w-full mx-auto flex-1" style={{ maxWidth: 1200 }}>
           <ProductsSection
             sellerId={seller.id}
             products={products}
@@ -350,24 +350,7 @@ export default function StorefrontPage() {
             bgGradient={productsConfig.bgGradient || ""}
             bgImage={productsConfig.bgImage || ""}
           />
-          <div className="border-t border-outline-variant/10" />
-          <FormSection
-            title={formConfig.title || "Contact Us"}
-            description={formConfig.description || ""}
-            contactMethod={formConfig.contactMethod || "whatsapp"}
-            whatsapp={formConfig.whatsapp || ""}
-            showWhatsappContact={formConfig.showWhatsappContact ?? false}
-            recipientEmail={formConfig.recipientEmail || ""}
-            buttonLabel={formConfig.buttonLabel || "Send Inquiry"}
-            phone={formConfig.phone || ""}
-            email={formConfig.email || ""}
-            address={formConfig.address || ""}
-            bgColor={formConfig.bgColor || ""}
-            bgGradient={formConfig.bgGradient || ""}
-            bgImage={formConfig.bgImage || ""}
-            primaryColor={primaryColor}
-          />
-          <div className="border-t border-outline-variant/10" />
+          </div>
           <FooterSection
             storeName={footerConfig.storeName || "My Store"}
             logo={footerConfig.logo || ""}
@@ -385,7 +368,6 @@ export default function StorefrontPage() {
             email={footerConfig.email || ""}
             address={footerConfig.address || ""}
           />
-          </div>
         </main>
 
         {/* Cart FAB (Razorpay mode) */}
@@ -414,20 +396,28 @@ export default function StorefrontPage() {
           </button>
         )}
 
-        {/* Cart Modal */}
+        {/* Cart Sidebar/Mobile Sheet */}
         {showCart && (
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setShowCart(false)}>
-            <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20">
-                <h2 className="font-headline-md text-lg text-on-surface">Cart ({cart.reduce((s, i) => s + i.quantity, 0)})</h2>
-                <button onClick={() => setShowCart(false)} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/6">
-                  <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 18 }}>close</span>
+          <>
+            {/* Overlay */}
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm md:backdrop-blur-none" onClick={() => setShowCart(false)} />
+            {/* Desktop sidebar */}
+            <div className="fixed top-0 right-0 z-50 h-full w-[420px] max-w-full bg-white shadow-2xl flex flex-col hidden md:flex" style={{ animation: "slideInRight 0.25s ease-out" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/20 shrink-0">
+                <h2 className="font-headline-md text-lg text-on-surface font-semibold">Cart ({cart.reduce((s, i) => s + i.quantity, 0)})</h2>
+                <button onClick={() => setShowCart(false)} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/6 transition-colors">
+                  <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 20 }}>close</span>
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {cart.map((item) => (
-                  <div key={item.product.id} className="flex gap-3">
-                    <div className="w-16 h-16 rounded-xl bg-surface-container-low shrink-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-on-surface-variant">
+                    <span className="material-symbols-outlined text-5xl mb-3" style={{ fontSize: 48 }}>shopping_cart</span>
+                    <p className="text-sm">Your cart is empty</p>
+                  </div>
+                ) : cart.map((item) => (
+                  <div key={item.product.id} className="flex gap-4 p-3 rounded-xl bg-surface-container-low/50 hover:bg-surface-container-low transition-colors">
+                    <div className="w-16 h-16 rounded-xl bg-white shrink-0 overflow-hidden shadow-sm">
                       {item.product.photoURL ? (
                         <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -436,14 +426,14 @@ export default function StorefrontPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-label-md text-sm text-on-surface truncate">{item.product.name}</p>
-                      <p className="text-sm text-primary font-bold">₹{item.product.price}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold">−</button>
-                        <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold">+</button>
-                        <button onClick={() => removeFromCart(item.product.id)} className="ml-auto text-red-400 hover:text-red-500 cursor-pointer">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <p className="font-label-md text-sm text-on-surface font-medium truncate">{item.product.name}</p>
+                      <p className="text-sm text-primary font-bold mt-0.5">₹{item.product.price}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-white text-sm font-bold transition-colors">−</button>
+                        <span className="text-sm font-semibold w-6 text-center text-on-surface">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-white text-sm font-bold transition-colors">+</button>
+                        <button onClick={() => removeFromCart(item.product.id)} className="ml-auto p-1.5 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
                         </button>
                       </div>
@@ -451,21 +441,87 @@ export default function StorefrontPage() {
                   </div>
                 ))}
               </div>
-              <div className="px-5 py-4 border-t border-outline-variant/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-label-md text-on-surface">Total</span>
-                  <span className="font-label-md font-bold text-primary text-lg">₹{cartTotal}</span>
+              {cart.length > 0 && (
+                <div className="px-6 py-5 border-t border-outline-variant/20 shrink-0 bg-white">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="font-label-md text-on-surface font-medium">Total</span>
+                    <span className="font-label-md font-bold text-primary text-xl">₹{cartTotal}</span>
+                  </div>
+                  <button
+                    onClick={checkoutRazorpay} disabled={ordering}
+                    className="w-full py-3.5 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer flex items-center gap-2 justify-center"
+                    style={{ backgroundColor: "var(--color-primary, #ff6b35)", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
+                  >
+                    {ordering ? (
+                      <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</span>
+                    ) : (
+                      <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>lock</span> Pay Rs.{cartTotal} via Razorpay</>
+                    )}
+                  </button>
                 </div>
-                <button
-                  onClick={checkoutRazorpay} disabled={ordering}
-                  className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-                  style={{ backgroundColor: "var(--color-primary, #ff6b35)", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
-                >
-                  {ordering ? "Processing..." : `Pay ₹${cartTotal}`}
+              )}
+            </div>
+            {/* Mobile bottom sheet */}
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl flex flex-col max-h-[85vh] md:hidden" style={{ animation: "slideUp 0.25s ease-out" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20 shrink-0">
+                <h2 className="font-headline-md text-lg text-on-surface font-semibold">Cart ({cart.reduce((s, i) => s + i.quantity, 0)})</h2>
+                <button onClick={() => setShowCart(false)} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/6 transition-colors">
+                  <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 20 }}>close</span>
                 </button>
               </div>
+              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-5xl mb-3" style={{ fontSize: 48 }}>shopping_cart</span>
+                    <p className="text-sm">Your cart is empty</p>
+                  </div>
+                ) : cart.map((item) => (
+                  <div key={item.product.id} className="flex gap-3 p-3 rounded-xl bg-surface-container-low/50">
+                    <div className="w-14 h-14 rounded-xl bg-white shrink-0 overflow-hidden shadow-sm">
+                      {item.product.photoURL ? (
+                        <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-on-surface-variant/20">
+                          <span className="material-symbols-outlined">image</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <p className="font-label-md text-sm text-on-surface font-medium truncate">{item.product.name}</p>
+                      <p className="text-sm text-primary font-bold mt-0.5">₹{item.product.price}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-white text-sm font-bold transition-colors">−</button>
+                        <span className="text-sm font-semibold w-6 text-center text-on-surface">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-white text-sm font-bold transition-colors">+</button>
+                        <button onClick={() => removeFromCart(item.product.id)} className="ml-auto p-1.5 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors">
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {cart.length > 0 && (
+                <div className="px-5 py-4 border-t border-outline-variant/20 shrink-0 bg-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-label-md text-on-surface font-medium">Total</span>
+                    <span className="font-label-md font-bold text-primary text-lg">₹{cartTotal}</span>
+                  </div>
+                  <button
+                    onClick={checkoutRazorpay} disabled={ordering}
+                    className="w-full py-3.5 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer flex items-center gap-2 justify-center"
+                    style={{ backgroundColor: "var(--color-primary, #ff6b35)", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
+                  >
+                    {ordering ? (
+                      <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</span>
+                    ) : (
+                      <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>lock</span> Pay Rs.{cartTotal} via Razorpay</>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
 
         {/* Custom Order Modal */}
@@ -646,60 +702,6 @@ export default function StorefrontPage() {
         >
           <span className="material-symbols-outlined">edit_note</span>
         </button>
-      )}
-
-      {/* Cart Modal */}
-      {showCart && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setShowCart(false)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20">
-              <h2 className="font-headline-md text-lg text-on-surface">Cart ({cart.reduce((s, i) => s + i.quantity, 0)})</h2>
-              <button onClick={() => setShowCart(false)} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/6">
-                <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 18 }}>close</span>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {cart.map((item) => (
-                <div key={item.product.id} className="flex gap-3">
-                  <div className="w-16 h-16 rounded-xl bg-surface-container-low shrink-0 overflow-hidden">
-                    {item.product.photoURL ? (
-                      <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-on-surface-variant/20">
-                        <span className="material-symbols-outlined">image</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-label-md text-sm text-on-surface truncate">{item.product.name}</p>
-                    <p className="text-sm text-primary font-bold">₹{item.product.price}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold">−</button>
-                      <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} className="w-7 h-7 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold">+</button>
-                      <button onClick={() => removeFromCart(item.product.id)} className="ml-auto text-red-400 hover:text-red-500 cursor-pointer">
-                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="px-5 py-4 border-t border-outline-variant/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-label-md text-on-surface">Total</span>
-                <span className="font-label-md font-bold text-primary text-lg">₹{cartTotal}</span>
-              </div>
-              <button
-                onClick={checkoutRazorpay} disabled={ordering}
-                className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-                style={{ backgroundColor: "var(--color-primary, #ff6b35)", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
-              >
-                {ordering ? "Processing..." : `Pay ₹${cartTotal}`}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Custom Order Modal */}

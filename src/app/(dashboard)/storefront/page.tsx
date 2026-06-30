@@ -6,7 +6,8 @@ import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import ProductsSection from "@/components/sections/ProductsSection";
-import FormSection from "@/components/sections/FormSection";
+
+
 import FooterSection from "@/components/sections/FooterSection";
 import useGoogleFont, { GOOGLE_FONTS } from "@/hooks/useGoogleFont";
 import { POLICY_LABELS, POLICY_DEFAULTS, fillPolicyTemplate, type PolicyType } from "@/lib/policyTemplates";
@@ -47,21 +48,6 @@ export default function StorefrontPage() {
   const [productsBgGradient, setProductsBgGradient] = useState("");
   const [productsBgImage, setProductsBgImage] = useState("");
 
-  // ─── Form Section ──────────────────────────────────────────────────────
-  const [formTitle, setFormTitle] = useState("Contact Us");
-  const [formDescription, setFormDescription] = useState("");
-  const [formContactMethod, setFormContactMethod] = useState<"whatsapp" | "email">("whatsapp");
-  const [formWhatsapp, setFormWhatsapp] = useState("");
-  const [formShowWhatsappContact, setFormShowWhatsappContact] = useState(false);
-  const [formRecipientEmail, setFormRecipientEmail] = useState("");
-  const [formButtonLabel, setFormButtonLabel] = useState("Send Inquiry");
-  const [formPhone, setFormPhone] = useState("");
-  const [formEmail, setFormEmail] = useState("");
-  const [formAddress, setFormAddress] = useState("");
-  const [formBgColor, setFormBgColor] = useState("");
-  const [formBgGradient, setFormBgGradient] = useState("");
-  const [formBgImage, setFormBgImage] = useState("");
-
   // ─── Footer Section ────────────────────────────────────────────────────
   const [footerStoreName, setFooterStoreName] = useState("My Store");
   const [footerLogo, setFooterLogo] = useState("");
@@ -101,7 +87,8 @@ export default function StorefrontPage() {
   const bgInputRef = useRef<HTMLInputElement>(null);
   const pageBgInputRef = useRef<HTMLInputElement>(null);
 
-  const [editSection, setEditSection] = useState<"navbar" | "products" | "form" | "footer" | "policies" | null>(null);
+  const [editSection, setEditSection] = useState<"navbar" | "products" | "footer" | "policies" | null>(null);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
 
   useLockBody(!!editSection);
 
@@ -151,22 +138,6 @@ export default function StorefrontPage() {
           setProductsBgColor(p.bgColor || "");
           setProductsBgGradient(p.bgGradient || "");
           setProductsBgImage(p.bgImage || "");
-
-          // Form section
-          const f = sf.form || {};
-          setFormTitle(f.title || "Contact Us");
-          setFormDescription(f.description || "");
-          setFormContactMethod(f.contactMethod || "whatsapp");
-          setFormWhatsapp(f.whatsapp || "");
-          setFormShowWhatsappContact(f.showWhatsappContact ?? false);
-          setFormRecipientEmail(f.recipientEmail || "");
-          setFormButtonLabel(f.buttonLabel || "Send Inquiry");
-          setFormPhone(f.phone || "");
-          setFormEmail(f.email || "");
-          setFormAddress(f.address || "");
-          setFormBgColor(f.bgColor || "");
-          setFormBgGradient(f.bgGradient || "");
-          setFormBgImage(f.bgImage || "");
 
           // Footer section
           const ft = sf.footer || {};
@@ -281,21 +252,6 @@ export default function StorefrontPage() {
             bgColor: productsBgColor,
             bgGradient: productsBgGradient,
             bgImage: productsBgImage,
-          },
-          form: {
-            title: formTitle,
-            description: formDescription,
-            contactMethod: formContactMethod,
-            whatsapp: formWhatsapp,
-            showWhatsappContact: formShowWhatsappContact,
-            recipientEmail: formRecipientEmail,
-            buttonLabel: formButtonLabel,
-            phone: formPhone,
-            email: formEmail,
-            address: formAddress,
-            bgColor: formBgColor,
-            bgGradient: formBgGradient,
-            bgImage: formBgImage,
           },
           footer: {
             storeName: footerStoreName,
@@ -484,7 +440,6 @@ export default function StorefrontPage() {
         {([
           { key: "navbar" as const, icon: "menu", label: "Navbar", summary: navbarLogoText || (navbarLogoURL ? "Custom logo" : "No logo") },
           { key: "products" as const, icon: "inventory_2", label: "Products Section", summary: productsTitle || "All products" },
-          { key: "form" as const, icon: "contact_support", label: "Contact Form Section", summary: formTitle || "Contact form" },
           { key: "footer" as const, icon: "bottom_panel_close", label: "Footer Section", summary: footerStoreName || "Footer" },
           { key: "policies" as const, icon: "description", label: "Policy Pages", summary: policyTermsContent ? "Customised" : "Default templates" },
         ]).map(({ key, icon, label, summary }) => (
@@ -535,7 +490,6 @@ export default function StorefrontPage() {
               <h2 className="font-headline-md text-lg text-on-surface">
                 {editSection === "navbar" && "Configure Navbar"}
                 {editSection === "products" && "Configure Products Section"}
-                {editSection === "form" && "Configure Contact Form"}
                 {editSection === "footer" && "Configure Footer"}
                 {editSection === "policies" && "Edit Policy Pages"}
               </h2>
@@ -691,45 +645,6 @@ export default function StorefrontPage() {
                 </>
               )}
 
-              {editSection === "form" && (
-                <>
-                  <div>
-                    <label className="block font-label-md text-sm text-on-surface mb-1">Title</label>
-                    <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Contact Us" className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
-                  </div>
-                  <div>
-                    <label className="block font-label-md text-sm text-on-surface mb-1">Description</label>
-                    <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Have a question? Get in touch!" className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
-                  </div>
-                  <div>
-                    <label className="block font-label-md text-sm text-on-surface mb-1">Contact Method</label>
-                    <div className="flex gap-3">
-                      {(["whatsapp", "email"] as const).map((m) => (
-                        <button key={m} onClick={() => setFormContactMethod(m)} className={`flex-1 py-3 rounded-xl text-sm font-label-md transition-all cursor-pointer capitalize ${formContactMethod === m ? "text-white" : "border border-outline text-on-surface-variant hover:text-on-surface"}`} style={formContactMethod === m ? { backgroundColor: m === "whatsapp" ? "#25D366" : "var(--color-primary, #ff6b35)" } : {}}>{m}</button>
-                      ))}
-                    </div>
-                  </div>
-                  {formContactMethod === "whatsapp" && (
-                    <div>
-                      <label className="block font-label-md text-sm text-on-surface mb-1">WhatsApp Number</label>
-                      <input type="text" value={formWhatsapp} onChange={(e) => setFormWhatsapp(e.target.value)} placeholder="8669062356" className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
-                    </div>
-                  )}
-                  {formContactMethod === "email" && (
-                    <div>
-                      <label className="block font-label-md text-sm text-on-surface mb-1">Recipient Email</label>
-                      <input type="email" value={formRecipientEmail} onChange={(e) => setFormRecipientEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
-                    </div>
-                  )}
-                  {formContactMethod === "email" && (
-                    <div>
-                      <label className="block font-label-md text-sm text-on-surface mb-1">Button Label</label>
-                      <input type="text" value={formButtonLabel} onChange={(e) => setFormButtonLabel(e.target.value)} placeholder="Send Inquiry" className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
-                    </div>
-                  )}
-                </>
-              )}
-
               {editSection === "footer" && (
                 <>
                   <div>
@@ -814,93 +729,113 @@ export default function StorefrontPage() {
         </div>
       )}
 
-      {/* ─── Full Preview ────────────────────────────────────────────────── */}
+      {/* ─── Preview ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden mt-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
           <h2 className="font-headline-md text-lg text-on-surface">Preview</h2>
-          <span className="text-xs text-on-surface-variant font-label-md">Rough preview — exact view may differ. <a href={`/store/${storeSlug}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">View live store</a></span>
+          <div className="flex items-center gap-3">
+            <div className="flex bg-surface-container-low rounded-lg p-0.5">
+              <button
+                onClick={() => setPreviewMode("desktop")}
+                className={`px-3 py-1.5 rounded-md text-xs font-label-md transition-all cursor-pointer ${previewMode === "desktop" ? "bg-white text-on-surface shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
+              >
+                Desktop
+              </button>
+              <button
+                onClick={() => setPreviewMode("mobile")}
+                className={`px-3 py-1.5 rounded-md text-xs font-label-md transition-all cursor-pointer ${previewMode === "mobile" ? "bg-white text-on-surface shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
+              >
+                Mobile
+              </button>
+            </div>
+            <a href={`/store/${storeSlug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-on-surface-variant font-label-md underline hover:text-primary">View live</a>
+          </div>
         </div>
-        <div className="flex flex-col" style={{
-          minHeight: 200,
-          ...(pageBgType === "color" ? { backgroundColor: pageBgColor } : {}),
-          ...(pageBgType === "gradient" ? { background: pageBgGradient } : {}),
-          ...(pageBgType === "image" && pageBgImage ? { backgroundImage: `url(${pageBgImage})`, backgroundSize: "100% auto", backgroundRepeat: "repeat-y" } : {}),
-        }}>
-          {/* Preview Navbar (full width, outside container) */}
-          <div className="w-full h-14 flex items-center px-4" style={{
-            backgroundColor: navbarBgImage ? "transparent" : navbarBgColor,
-            backgroundImage: navbarBgImage ? `url(${navbarBgImage})` : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}>
-            <div className="flex h-full items-center w-full mx-auto" style={{ maxWidth: 1440, justifyContent: logoPosition === "left" ? "flex-start" : logoPosition === "right" ? "flex-end" : "center" }}>
-              {navbarLogoURL ? (
-                <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: 200 }} />
-              ) : navbarLogoText ? (
-                <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
-                  {navbarLogoText}
-                </span>
-              ) : null}
+
+        <div className="p-6 flex justify-center">
+          {previewMode === "desktop" ? (
+            /* ── Desktop Preview (original full-width layout) ── */
+            <div className="flex flex-col w-full rounded-xl border border-outline-variant/20 overflow-hidden" style={{
+              minHeight: 200,
+              ...(pageBgType === "color" ? { backgroundColor: pageBgColor } : {}),
+              ...(pageBgType === "gradient" ? { background: pageBgGradient } : {}),
+              ...(pageBgType === "image" && pageBgImage ? { backgroundImage: `url(${pageBgImage})`, backgroundSize: "100% auto", backgroundRepeat: "repeat-y" } : {}),
+            }}>
+              <div className="w-full h-14 flex items-center px-4 shrink-0" style={{
+                backgroundColor: navbarBgImage ? "transparent" : navbarBgColor,
+                backgroundImage: navbarBgImage ? `url(${navbarBgImage})` : undefined,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}>
+                <div className="flex h-full items-center w-full mx-auto" style={{ maxWidth: 1200, justifyContent: logoPosition === "left" ? "flex-start" : logoPosition === "right" ? "flex-end" : "center" }}>
+                  {navbarLogoURL ? (
+                    <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: 200 }} />
+                  ) : navbarLogoText ? (
+                    <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
+                      {navbarLogoText}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="w-full mx-auto" style={{ maxWidth: 1200 }}>
+                <div style={{ "--color-primary": primaryColor } as React.CSSProperties}>
+                  <ProductsSection
+                    sellerId={user?.uid || ""}
+                    whatsapp=""
+                    orderMethod="whatsapp"
+                    title={productsTitle}
+                    subtitle={productsSubtitle}
+                    showCategoryFilter={productsShowFilter}
+                    onAddToCart={() => {}}
+                    bgColor={productsBgColor}
+                    bgGradient={productsBgGradient}
+                    bgImage={productsBgImage}
+                  />
+                  <div className="border-t border-outline-variant/10" />
+                  <FooterSection
+                    storeName={footerStoreName}
+                    logo={footerLogo}
+                    instagram={footerInstagram}
+                    whatsapp={footerWhatsapp}
+                    facebook={footerFacebook}
+                    copyright={footerCopyright}
+                    bgColor={footerBgColor}
+                    bgGradient={footerBgGradient}
+                    bgImage={footerBgImage}
+                    termsUrl={storeSlug ? `/store/${storeSlug}/policy/terms` : ""}
+                    privacyUrl={storeSlug ? `/store/${storeSlug}/policy/privacy` : ""}
+                    refundsUrl={storeSlug ? `/store/${storeSlug}/policy/refunds` : ""}
+                    phone={footerPhone}
+                    email={footerEmail}
+                    address={footerAddress}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Sections container (capped at 1200px) */}
-          <div className="w-full mx-auto" style={{ maxWidth: 1200 }}>
-            <div style={{ "--color-primary": primaryColor } as React.CSSProperties}>
-              {/* Preview Products Section */}
-              <ProductsSection
-                sellerId={user?.uid || ""}
-                whatsapp=""
-                orderMethod="whatsapp"
-                title={productsTitle}
-                subtitle={productsSubtitle}
-                showCategoryFilter={productsShowFilter}
-                onAddToCart={() => {}}
-                bgColor={productsBgColor}
-                bgGradient={productsBgGradient}
-                bgImage={productsBgImage}
-              />
-
-              {/* Preview Form Section */}
-              <div className="border-t border-outline-variant/10" />
-              <FormSection
-                title={formTitle}
-                description={formDescription}
-                contactMethod={formContactMethod}
-                whatsapp={formWhatsapp}
-                showWhatsappContact={formShowWhatsappContact}
-                recipientEmail={formRecipientEmail}
-                buttonLabel={formButtonLabel}
-                phone={formPhone}
-                email={formEmail}
-                address={formAddress}
-                bgColor={formBgColor}
-                bgGradient={formBgGradient}
-                bgImage={formBgImage}
-                primaryColor={primaryColor}
-              />
-
-              {/* Preview Footer Section */}
-              <div className="border-t border-outline-variant/10" />
-              <FooterSection
-                storeName={footerStoreName}
-                logo={footerLogo}
-                instagram={footerInstagram}
-                whatsapp={footerWhatsapp}
-                facebook={footerFacebook}
-                copyright={footerCopyright}
-                bgColor={footerBgColor}
-                bgGradient={footerBgGradient}
-                bgImage={footerBgImage}
-                termsUrl={storeSlug ? `/store/${storeSlug}/policy/terms` : ""}
-                privacyUrl={storeSlug ? `/store/${storeSlug}/policy/privacy` : ""}
-                refundsUrl={storeSlug ? `/store/${storeSlug}/policy/refunds` : ""}
-                phone={footerPhone}
-                email={footerEmail}
-                address={footerAddress}
-              />
+          ) : (
+            /* ── Mobile Phone Frame (iframed for real mobile viewport) ── */
+            <div className="rounded-[2.5rem] border-4 border-gray-800 bg-gray-800 shadow-xl overflow-hidden" style={{ width: 320 }}>
+              <div className="relative h-6 bg-gray-800 flex items-center justify-center">
+                <div className="w-28 h-5 bg-black rounded-full" />
+              </div>
+              {storeSlug ? (
+                <iframe
+                  src={`/store/${storeSlug}`}
+                  className="bg-white block"
+                  style={{ width: 375, height: 580, border: "none", transform: "scale(0.8533)", transformOrigin: "top left" }}
+                  title="Mobile preview"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <div className="flex items-center justify-center bg-white" style={{ width: 375, height: 580 }}>
+                  <p className="text-sm text-on-surface-variant">Save your store slug first</p>
+                </div>
+              )}
+              <div className="flex items-center justify-center py-2 bg-gray-800">
+                <div className="w-28 h-1 bg-gray-600 rounded-full" />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
       <div className="flex justify-end mt-4">
