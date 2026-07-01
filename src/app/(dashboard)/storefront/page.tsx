@@ -23,13 +23,13 @@ export default function StorefrontPage() {
 
   // ─── Navbar ────────────────────────────────────────────────────────────
 
-  const [navbarBgColor, setNavbarBgColor] = useState("#f68f1d");
+  const [navbarBgColor, setNavbarBgColor] = useState("#ffffff");
   const [navbarBgImage, setNavbarBgImage] = useState("");
   const [navbarLogoURL, setNavbarLogoURL] = useState("");
   const [navbarLogoHeight, setNavbarLogoHeight] = useState(36);
   const [navbarLogoText, setNavbarLogoText] = useState("");
   const [navbarLogoFont, setNavbarLogoFont] = useState("Arial");
-  const [navbarLogoTextColor, setNavbarLogoTextColor] = useState("#ffffff");
+  const [navbarLogoTextColor, setNavbarLogoTextColor] = useState("#000000");
 
   // ─── Theme ─────────────────────────────────────────────────────────────
   const [primaryColor, setPrimaryColor] = useState("#ff6b35");
@@ -100,6 +100,14 @@ export default function StorefrontPage() {
   }
 
   useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 768) setPreviewMode("desktop");
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
     const stored = localStorage.getItem("sellri_user");
     if (!stored) { router.push("/signin"); return; }
     const u = JSON.parse(stored);
@@ -113,13 +121,13 @@ export default function StorefrontPage() {
         const sf = data?.storefront;
         if (sf) {
           // Navbar
-          setNavbarBgColor(sf.navbar?.bgColor || "#f68f1d");
+          setNavbarBgColor(sf.navbar?.bgColor || "#ffffff");
           setNavbarBgImage(sf.navbar?.bgImage || "");
           setNavbarLogoURL(sf.navbar?.logoURL || "");
           setNavbarLogoHeight(sf.navbar?.logoHeight ?? 36);
           setNavbarLogoText(sf.navbar?.logoText || "");
           setNavbarLogoFont(sf.navbar?.logoFont || "Arial");
-          setNavbarLogoTextColor(sf.navbar?.logoTextColor || "#ffffff");
+          setNavbarLogoTextColor(sf.navbar?.logoTextColor || "#000000");
 
           // Theme
           setPrimaryColor(sf.theme?.primaryColor || "#ff6b35");
@@ -309,19 +317,11 @@ export default function StorefrontPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row items-center justify-between mb-8 text-center md:text-left">
         <div>
           <h1 className="font-display-lg text-3xl text-on-surface">Storefront</h1>
           <p className="text-on-surface-variant">Customise how your store looks to customers.</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 py-3 px-6 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-          style={{ backgroundColor: "var(--color-primary, #ff6b35)", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
       </div>
 
       {/* ─── Theme ───────────────────────────────────────────────────────── */}
@@ -335,14 +335,14 @@ export default function StorefrontPage() {
               type="color"
               value={primaryColor}
               onChange={(e) => setPrimaryColor(e.target.value)}
-              className="w-12 h-12 rounded-xl border border-outline cursor-pointer bg-transparent p-1"
+              className="w-16 h-16 rounded-xl border border-outline cursor-pointer bg-transparent p-1"
             />
             <input
               type="text"
               value={primaryColor}
               onChange={(e) => setPrimaryColor(e.target.value)}
               placeholder="#ff6b35"
-              className="flex-1 px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm"
+              className="w-24 px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm"
             />
             <button
               onClick={() => setPrimaryColor("#ff6b35")}
@@ -436,7 +436,7 @@ export default function StorefrontPage() {
       {/* ─── Section Cards ────────────────────────────────────────────────── */}
       <div className="space-y-3 mb-6">
         {([
-          { key: "navbar" as const, icon: "menu", label: "Navbar", summary: navbarLogoText || (navbarLogoURL ? "Custom logo" : "No logo") },
+          { key: "navbar" as const, icon: "menu", label: "Navbar", summary: navbarLogoText || (navbarLogoURL ? "Custom logo" : sellerName || "No logo") },
           { key: "products" as const, icon: "inventory_2", label: "Products Section", summary: productsTitle || "All products" },
           { key: "footer" as const, icon: "bottom_panel_close", label: "Footer Section", summary: footerStoreName || "Footer" },
           { key: "policies" as const, icon: "description", label: "Policy Pages", summary: policyTermsContent ? "Customised" : "Default templates" },
@@ -551,7 +551,6 @@ export default function StorefrontPage() {
                         <label className="block font-label-md text-xs text-on-surface mb-1">Color</label>
                         <div className="flex items-center gap-2">
                           <input type="color" value={navbarLogoTextColor} onChange={(e) => setNavbarLogoTextColor(e.target.value)} className="w-12 h-12 rounded-xl border border-outline cursor-pointer bg-transparent p-1 shrink-0" />
-                          <input type="text" value={navbarLogoTextColor} onChange={(e) => setNavbarLogoTextColor(e.target.value)} className="flex-1 px-3 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md text-sm" />
                         </div>
                       </div>
                     </div>
@@ -610,6 +609,10 @@ export default function StorefrontPage() {
                         ) : navbarLogoText ? (
                           <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
                             {navbarLogoText}
+                          </span>
+                        ) : sellerName ? (
+                          <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
+                            {sellerName}
                           </span>
                         ) : null}
                       </div>
@@ -723,7 +726,7 @@ export default function StorefrontPage() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
           <h2 className="font-headline-md text-lg text-on-surface">Preview</h2>
           <div className="flex items-center gap-3">
-            <div className="flex bg-surface-container-low rounded-lg p-0.5">
+            <div className="hidden md:flex bg-surface-container-low rounded-lg p-0.5">
               <button
                 onClick={() => setPreviewMode("desktop")}
                 className={`px-3 py-1.5 rounded-md text-xs font-label-md transition-all cursor-pointer ${previewMode === "desktop" ? "bg-white text-on-surface shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
@@ -762,6 +765,10 @@ export default function StorefrontPage() {
                   ) : navbarLogoText ? (
                     <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
                       {navbarLogoText}
+                    </span>
+                  ) : sellerName ? (
+                    <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
+                      {sellerName}
                     </span>
                   ) : null}
                 </div>

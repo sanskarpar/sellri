@@ -89,29 +89,16 @@ export default function OrdersPage() {
 
   async function handleStatus(order: Order, status: OrderStatus) {
     if (!user) return;
-    await updateDoc(doc(db, "users", user.uid, "orders", order.id), {
-      status,
-      updatedAt: serverTimestamp(),
-    });
-    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status } : o));
-  }
-
-  function getNextStatus(order: Order): OrderStatus | null {
-    if (order.source === "razorpay") {
-      const map: Record<string, OrderStatus | null> = {
-        Paid: "Out for Delivery",
-        "Out for Delivery": "Delivered",
-        Delivered: null,
-      };
-      return map[order.status] ?? null;
+    const prevStatus = order.status;
+    setOrders((list) => list.map((o) => o.id === order.id ? { ...o, status } : o));
+    try {
+      await updateDoc(doc(db, "users", user.uid, "orders", order.id), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setOrders((list) => list.map((o) => o.id === order.id ? { ...o, status: prevStatus } : o));
     }
-      const map: Record<string, OrderStatus | null> = {
-        Received: "Paid",
-        Paid: "Out for Delivery",
-        "Out for Delivery": "Delivered",
-        Delivered: null,
-      };
-    return map[order.status] ?? null;
   }
 
   // Customer list derived from orders
@@ -226,24 +213,24 @@ export default function OrdersPage() {
                   {/* Status tracker */}
                   <div className="flex items-center gap-1 md:gap-2 mt-4 pt-4 border-t border-outline-variant/20">
                     {(order.source === "razorpay" ? STATUSES.filter((s) => s !== "Received") : STATUSES).map((s, i, arr) => {
-                      const next = getNextStatus(order);
-                      const visibleIdx = arr.indexOf(order.status as any);
+                      const idx = arr.indexOf(order.status as any);
                       const isCurrent = order.status === s;
-                      const isClickable = next === s;
+                      const isPast = idx > i;
+                      const isClickable = order.status !== s;
                       return (
-                        <div key={s} className="flex items-center flex-1">
+                        <div key={s} className="flex flex-col md:flex-row items-center flex-1 min-w-0">
                           <button
-                            onClick={() => isClickable ? handleStatus(order, s) : null}
+                            onClick={() => handleStatus(order, s)}
                             disabled={!isClickable}
-                            className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${isCurrent ? "text-white shadow-md" : visibleIdx > i ? "bg-green-100 text-green-600" : "bg-surface-container-low text-on-surface-variant/40"}`}
+                            className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isClickable ? "cursor-pointer active:scale-90" : "cursor-default"} ${isCurrent ? "text-white shadow-md" : isPast ? "bg-green-100 text-green-600" : "bg-surface-container-low text-on-surface-variant/40"}`}
                             style={isCurrent ? { backgroundColor: "#ff6b35" } : {}}
                             title={s}
                           >
-                            {visibleIdx > i ? "✓" : i + 1}
+                            {isPast ? "✓" : i + 1}
                           </button>
-                          <span className={`hidden md:block text-xs ml-2 ${isCurrent ? "text-primary font-semibold" : "text-on-surface-variant"}`}>{s}</span>
+                          <span className={`text-[9px] md:text-xs mt-0.5 md:mt-0 md:ml-2 min-w-0 truncate text-center leading-tight ${isCurrent ? "text-primary font-semibold" : "text-on-surface-variant"}`}>{s}</span>
                           {i < arr.length - 1 && (
-                            <div className={`flex-1 h-0.5 mx-1 md:mx-2 ${visibleIdx > i ? "bg-green-400" : "bg-outline-variant/30"}`} />
+                            <div className={`hidden md:block flex-1 h-0.5 mx-2 ${isPast ? "bg-green-400" : "bg-outline-variant/30"}`} />
                           )}
                         </div>
                       );
@@ -265,10 +252,10 @@ export default function OrdersPage() {
                     )}
                     {order.status === "Received" && (
                       <button
-                        onClick={async () => {
-                          if (!user || !confirm("Delete this order?")) return;
-                          await deleteDoc(doc(db, "users", user.uid, "orders", order.id));
+                        onClick={() => {
+                          if (!user) return;
                           setOrders((prev) => prev.filter((o) => o.id !== order.id));
+                          deleteDoc(doc(db, "users", user.uid, "orders", order.id)).catch(() => loadOrders(user.uid));
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
                       >
