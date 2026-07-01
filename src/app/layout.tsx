@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Sellri | Premium Social Commerce for Indian Entrepreneurs",
   description:
     "Transform your social media into a professional storefront. A simple link your buyers can browse and order from—instantly.",
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({

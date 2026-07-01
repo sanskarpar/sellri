@@ -119,6 +119,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button, a, label, [role="button"], input[type="checkbox"], input[type="radio"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input[type="text"], input[type="tel"], input[type="email"], input[type="number"], input[type="password"], textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   vertical-align: middle;

@@ -83,7 +83,6 @@ export default function PolicyPage() {
     } as React.CSSProperties : undefined}>
       <Navbar
         storefrontNavbar={{
-          logoPosition: navbarConfig.logoPosition || "center",
           bgColor: navbarConfig.bgColor || "#f68f1d",
           bgImage: navbarConfig.bgImage || "",
           logoURL: navbarConfig.logoURL || "",
@@ -107,27 +106,27 @@ export default function PolicyPage() {
               if (!body) {
                 if (heading.startsWith("- ")) {
                   return (
-                    <ul key={i} className="list-disc pl-6 mb-4 text-on-surface-variant space-y-1">
+                    <ul key={i} className="list-disc pl-6 mb-4 text-on-surface space-y-1">
                       {lines.filter((l: string) => l.trim()).map((line: string, j: number) => (
                         <li key={j}>{line.replace(/^- /, "")}</li>
                       ))}
                     </ul>
                   );
                 }
-                return <p key={i} className="mb-4 text-on-surface-variant leading-relaxed">{heading}</p>;
+                return <p key={i} className="mb-4 text-on-surface leading-relaxed">{heading}</p>;
               }
 
               return (
                 <div key={i} className="mb-6">
                   <h2 className="text-xl font-semibold text-on-surface mb-2">{heading}</h2>
                   {body.startsWith("- ") ? (
-                    <ul className="list-disc pl-6 text-on-surface-variant space-y-1">
+                    <ul className="list-disc pl-6 text-on-surface space-y-1">
                       {body.split("\n").filter((l: string) => l.trim()).map((line: string, j: number) => (
                         <li key={j}>{line.replace(/^- /, "")}</li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-on-surface-variant leading-relaxed">{body}</p>
+                    <p className="text-on-surface leading-relaxed">{body}</p>
                   )}
                 </div>
               );
@@ -145,6 +144,7 @@ export default function PolicyPage() {
         bgColor={footerConfig.bgColor || ""}
         bgGradient={footerConfig.bgGradient || ""}
         bgImage={footerConfig.bgImage || ""}
+        trackUrl="/track"
         phone={footerConfig.phone || ""}
         email={footerConfig.email || ""}
         address={footerConfig.address || ""}

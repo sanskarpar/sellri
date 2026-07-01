@@ -24,6 +24,17 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    // Public: read orders via collectionGroup queries (for order tracking)
+    match /{path=**}/orders/{orderId} {
+      allow read: if true;
+    }
+
+    // OTP verification (write by server, read by client)
+    match /otps/{otpId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -41,7 +42,7 @@ export default function Home() {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center pb-8 md:pb-12 overflow-hidden bg-gradient-to-br from-surface via-surface to-primary-fixed/20">
+      <section className="relative overflow-hidden bg-gradient-to-br from-surface via-surface to-primary-fixed/20 pt-16 md:pt-20">
         <div className="absolute top-1/4 left-0 w-64 h-64 md:w-96 md:h-96 bg-primary-container/10 rounded-full blur-[120px] -translate-x-1/2" />
         <div className="absolute bottom-1/4 right-0 w-64 h-64 md:w-96 md:h-96 bg-tertiary-container/10 rounded-full blur-[120px] translate-x-1/2" />
         <div className="absolute top-1/3 right-1/4 w-48 h-48 md:w-64 md:h-64 bg-primary/5 rounded-full blur-[80px]" />
@@ -76,10 +77,10 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 md:gap-space-md justify-center lg:justify-start pt-2 md:pt-space-md">
-              <button className="text-white px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 rounded-2xl font-headline-md text-base sm:text-headline-md hover:translate-y-[-2px] hover:shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2 md:gap-space-xs cursor-pointer" style={{ backgroundColor: "#f68f1d" }}>
+              <Link href="/signin" className="text-white px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 rounded-2xl font-headline-md text-base sm:text-headline-md hover:translate-y-[-2px] hover:shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2 md:gap-space-xs" style={{ backgroundColor: "#f68f1d" }}>
                 Create your free page
                 <span className="material-symbols-outlined text-xl">arrow_forward</span>
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -287,10 +288,6 @@ export default function Home() {
                     A custom-branded URL that looks amazing on any device. Built for
                     high conversion rates.
                   </p>
-                  <button className="text-primary-fixed-dim flex items-center gap-1 md:gap-2 group cursor-pointer text-sm md:text-base">
-                    Learn about themes
-                    <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform text-base md:text-xl">arrow_forward</span>
-                  </button>
                 </div>
                 <div className="flex-1 w-full">
                   <div className="bg-surface/10 rounded-xl aspect-video relative overflow-hidden flex items-center justify-center">
@@ -333,7 +330,7 @@ export default function Home() {
                   <div className="text-center mb-6 md:mb-space-lg">
                     <p className="text-on-surface-variant font-label-md text-sm md:text-base mb-1 md:mb-2">Professional Plan</p>
                     <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight">₹399</span>
+                      <span className="text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight">₹59</span>
                       <span className="text-on-surface-variant text-sm md:text-base">/month</span>
                     </div>
                   </div>
@@ -347,11 +344,11 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  <button className="w-full text-white py-3 md:py-4 rounded-xl font-headline-md text-base md:text-headline-md hover:translate-y-[-2px] active:scale-95 transition-all cursor-pointer" style={{ backgroundColor: "#f68f1d" }}>
+                  <Link href="/signin" className="block w-full text-white py-3 md:py-4 rounded-xl font-headline-md text-base md:text-headline-md hover:translate-y-[-2px] active:scale-95 transition-all text-center" style={{ backgroundColor: "#f68f1d" }}>
                     Start your 14-day free trial
-                  </button>
+                  </Link>
                   <p className="text-center text-label-sm text-on-surface-variant mt-3 md:mt-4 text-xs md:text-sm">
-                    No credit card required to start.
+                    No Payment details required.
                   </p>
                 </div>
               </div>
@@ -402,9 +399,9 @@ export default function Home() {
                 and working less with Sellri.
               </p>
               <div className="pt-2 md:pt-space-md relative z-10">
-                <button className="text-[#1a1a2e] px-6 sm:px-8 md:px-12 py-3 md:py-5 rounded-full font-headline-lg text-base md:text-headline-lg hover:scale-105 active:scale-95 transition-all shadow-2xl cursor-pointer font-bold" style={{ backgroundColor: "#f68f1d" }}>
+                <Link href="/signin" className="inline-block text-[#1a1a2e] px-6 sm:px-8 md:px-12 py-3 md:py-5 rounded-full font-headline-lg text-base md:text-headline-lg hover:scale-105 active:scale-95 transition-all shadow-2xl font-bold" style={{ backgroundColor: "#f68f1d" }}>
                   Create your free page now
-                </button>
+                </Link>
                 <p className="mt-3 md:mt-space-md text-label-sm text-white/50 text-xs md:text-sm">
                   Free 14-day trial &bull; No setup fee &bull; Cancel anytime
                 </p>

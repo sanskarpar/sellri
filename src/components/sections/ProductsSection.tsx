@@ -429,7 +429,6 @@ export function ProductDetailModal({
             {product.category && (
               <div className="mt-4 sm:mt-5">
                 <span className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium bg-surface-container-low text-on-surface-variant border border-outline-variant/20">
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>folder</span>
                   {product.category}
                 </span>
               </div>

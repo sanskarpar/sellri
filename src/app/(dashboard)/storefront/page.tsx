@@ -22,7 +22,7 @@ export default function StorefrontPage() {
   const [saving, setSaving] = useState(false);
 
   // ─── Navbar ────────────────────────────────────────────────────────────
-  const [logoPosition, setLogoPosition] = useState<"left" | "center" | "right">("center");
+
   const [navbarBgColor, setNavbarBgColor] = useState("#f68f1d");
   const [navbarBgImage, setNavbarBgImage] = useState("");
   const [navbarLogoURL, setNavbarLogoURL] = useState("");
@@ -113,7 +113,6 @@ export default function StorefrontPage() {
         const sf = data?.storefront;
         if (sf) {
           // Navbar
-          setLogoPosition(sf.navbar?.logoPosition || "center");
           setNavbarBgColor(sf.navbar?.bgColor || "#f68f1d");
           setNavbarBgImage(sf.navbar?.bgImage || "");
           setNavbarLogoURL(sf.navbar?.logoURL || "");
@@ -236,7 +235,6 @@ export default function StorefrontPage() {
       await updateDoc(doc(db, "users", user.uid), {
         storefront: {
           navbar: {
-            logoPosition,
             bgColor: navbarBgColor,
             bgImage: navbarBgImage,
             logoURL: navbarLogoURL,
@@ -560,15 +558,6 @@ export default function StorefrontPage() {
                   </div>
 
                   <div>
-                    <label className="block font-label-md text-sm text-on-surface mb-2">Logo position</label>
-                    <div className="flex gap-3">
-                      {(["left", "center", "right"] as const).map((pos) => (
-                        <button key={pos} onClick={() => setLogoPosition(pos)} className={`flex-1 py-3 rounded-xl text-sm font-label-md transition-all cursor-pointer capitalize ${logoPosition === pos ? "text-white" : "border border-outline text-on-surface-variant hover:text-on-surface"}`} style={logoPosition === pos ? { backgroundColor: "var(--color-primary, #ff6b35)" } : {}}>{pos}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
                     <label className="block font-label-md text-sm text-on-surface mb-2">Logo size: {navbarLogoHeight}px</label>
                     <input type="range" min="20" max="120" value={navbarLogoHeight} onChange={(e) => setNavbarLogoHeight(Number(e.target.value))} className="w-full h-2 rounded-full appearance-none cursor-pointer" style={{ accentColor: "var(--color-primary, #ff6b35)" }} />
                     <div className="flex justify-between text-xs text-on-surface-variant mt-1">
@@ -615,7 +604,7 @@ export default function StorefrontPage() {
                       backgroundSize: "cover",
                       backgroundPosition: "center",
                     }}>
-                      <div className="flex h-full items-center w-full mx-auto" style={{ maxWidth: 1440, justifyContent: logoPosition === "left" ? "flex-start" : logoPosition === "right" ? "flex-end" : "center" }}>
+                      <div className="flex h-full items-center justify-center w-full mx-auto" style={{ maxWidth: 1440 }}>
                         {navbarLogoURL ? (
                           <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: 200 }} />
                         ) : navbarLogoText ? (
@@ -767,7 +756,7 @@ export default function StorefrontPage() {
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}>
-                <div className="flex h-full items-center w-full mx-auto" style={{ maxWidth: 1200, justifyContent: logoPosition === "left" ? "flex-start" : logoPosition === "right" ? "flex-end" : "center" }}>
+                <div className="flex h-full items-center justify-center w-full mx-auto" style={{ maxWidth: 1200 }}>
                   {navbarLogoURL ? (
                     <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: 200 }} />
                   ) : navbarLogoText ? (

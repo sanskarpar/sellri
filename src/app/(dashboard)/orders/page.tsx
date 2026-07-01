@@ -2,20 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useLockBody } from "@/hooks/useLockBody";
 
-const STATUSES = ["Received", "Paid", "Packed", "Delivered"] as const;
+const STATUSES = ["Received", "Paid", "Out for Delivery", "Delivered"] as const;
 type OrderStatus = (typeof STATUSES)[number];
 
 type Order = {
   id: string;
+  reference?: string;
   customerName: string;
   customerPhone: string;
-  items: string;
+  customerEmail?: string;
+  customerAddress?: string;
+  customerMessage?: string;
+  items: string | { productName: string; price: number; quantity: number }[];
   total: number;
   status: OrderStatus;
+  source?: "manual" | "razorpay";
+  paymentId?: string;
   createdAt?: any;
 };
 
@@ -67,6 +73,7 @@ export default function OrdersPage() {
         items: formItems.trim(),
         total: parseFloat(formTotal) || 0,
         status: "Received",
+        source: "manual",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -89,12 +96,23 @@ export default function OrdersPage() {
     setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status } : o));
   }
 
-  const nextStatus: Record<OrderStatus, OrderStatus | null> = {
-    Received: "Paid",
-    Paid: "Packed",
-    Packed: "Delivered",
-    Delivered: null,
-  };
+  function getNextStatus(order: Order): OrderStatus | null {
+    if (order.source === "razorpay") {
+      const map: Record<string, OrderStatus | null> = {
+        Paid: "Out for Delivery",
+        "Out for Delivery": "Delivered",
+        Delivered: null,
+      };
+      return map[order.status] ?? null;
+    }
+      const map: Record<string, OrderStatus | null> = {
+        Received: "Paid",
+        Paid: "Out for Delivery",
+        "Out for Delivery": "Delivered",
+        Delivered: null,
+      };
+    return map[order.status] ?? null;
+  }
 
   // Customer list derived from orders
   const customers = orders.reduce<{ name: string; phone: string; totalOrders: number; totalSpent: number; lastOrder: string }[]>((acc, o) => {
@@ -156,53 +174,112 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {orders.map((order) => (
+              {orders.map((order) => {
+                const isRazorpay = order.source === "razorpay";
+                const itemList = typeof order.items === "string" ? order.items : order.items.map((i: any) => `${i.productName} x${i.quantity} (₹${i.price * i.quantity})`).join(", ");
+                return (
                 <div key={order.id} className="bg-white rounded-2xl p-4 md:p-6 border border-outline-variant/30 shadow-sm">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        {order.reference && (
+                          <span className="text-xs font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-lg">{order.reference}</span>
+                        )}
+                        {isRazorpay && (
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">Online</span>
+                        )}
+                      </div>
                       <h3 className="font-label-md font-bold text-on-surface">{order.customerName}</h3>
                       <p className="text-sm text-on-surface-variant">
                         <span className="material-symbols-outlined inline-block align-middle" style={{ fontSize: 14 }}>call</span>{" "}
                         {order.customerPhone}
                       </p>
+                      {order.customerEmail && (
+                        <p className="text-sm text-on-surface-variant">
+                          <span className="material-symbols-outlined inline-block align-middle" style={{ fontSize: 14 }}>mail</span>{" "}
+                          {order.customerEmail}
+                        </p>
+                      )}
+                      {order.customerAddress && (
+                        <p className="text-sm text-on-surface-variant">
+                          <span className="material-symbols-outlined inline-block align-middle" style={{ fontSize: 14 }}>location_on</span>{" "}
+                          {order.customerAddress}
+                        </p>
+                      )}
                     </div>
                     <span className="text-lg font-bold text-primary">₹{order.total}</span>
                   </div>
 
-                  {order.items && (
+                  {itemList && (
                     <p className="text-sm text-on-surface-variant mb-3">
                       <span className="material-symbols-outlined inline-block align-middle" style={{ fontSize: 14 }}>inventory_2</span>{" "}
-                      {order.items}
+                      {itemList}
+                    </p>
+                  )}
+
+                  {order.customerMessage && (
+                    <p className="text-sm bg-amber-50 text-amber-800 p-3 rounded-xl mb-3">
+                      <span className="font-semibold">Note:</span> {order.customerMessage}
                     </p>
                   )}
 
                   {/* Status tracker */}
                   <div className="flex items-center gap-1 md:gap-2 mt-4 pt-4 border-t border-outline-variant/20">
-                    {STATUSES.map((s, i) => {
-                      const currentIdx = STATUSES.indexOf(order.status);
-                      const isDone = currentIdx >= i;
+                    {(order.source === "razorpay" ? STATUSES.filter((s) => s !== "Received") : STATUSES).map((s, i, arr) => {
+                      const next = getNextStatus(order);
+                      const visibleIdx = arr.indexOf(order.status as any);
                       const isCurrent = order.status === s;
+                      const isClickable = next === s;
                       return (
                         <div key={s} className="flex items-center flex-1">
                           <button
-                            onClick={() => isDone && nextStatus[order.status] === s ? handleStatus(order, s) : null}
-                            disabled={!isDone || isCurrent}
-                            className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${isCurrent ? "text-white shadow-md" : isDone ? "bg-green-100 text-green-600" : "bg-surface-container-low text-on-surface-variant/40"}`}
+                            onClick={() => isClickable ? handleStatus(order, s) : null}
+                            disabled={!isClickable}
+                            className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${isCurrent ? "text-white shadow-md" : visibleIdx > i ? "bg-green-100 text-green-600" : "bg-surface-container-low text-on-surface-variant/40"}`}
                             style={isCurrent ? { backgroundColor: "#ff6b35" } : {}}
                             title={s}
                           >
-                            {isDone ? "✓" : i + 1}
+                            {visibleIdx > i ? "✓" : i + 1}
                           </button>
                           <span className={`hidden md:block text-xs ml-2 ${isCurrent ? "text-primary font-semibold" : "text-on-surface-variant"}`}>{s}</span>
-                          {i < STATUSES.length - 1 && (
-                            <div className={`flex-1 h-0.5 mx-1 md:mx-2 ${currentIdx > i ? "bg-green-400" : "bg-outline-variant/30"}`} />
+                          {i < arr.length - 1 && (
+                            <div className={`flex-1 h-0.5 mx-1 md:mx-2 ${visibleIdx > i ? "bg-green-400" : "bg-outline-variant/30"}`} />
                           )}
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-outline-variant/20">
+                    {order.customerPhone && (
+                      <a
+                        href={`https://wa.me/91${order.customerPhone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${order.customerName}, regarding your order ${order.reference || ""} (₹${order.total}) — Status: ${order.status}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-green-600 bg-green-50 hover:bg-green-100 transition-colors"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chat</span>
+                        WhatsApp
+                      </a>
+                    )}
+                    {order.status === "Received" && (
+                      <button
+                        onClick={async () => {
+                          if (!user || !confirm("Delete this order?")) return;
+                          await deleteDoc(doc(db, "users", user.uid, "orders", order.id));
+                          setOrders((prev) => prev.filter((o) => o.id !== order.id));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </>

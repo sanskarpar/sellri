@@ -317,11 +317,16 @@ export default function ProductsPage() {
                 )}
                 {!makeToOrder && (
                   <div className="mt-3 pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+                    <span className="text-xs text-on-surface-variant">Active</span>
                     <button
+                      type="button"
                       onClick={() => handleToggleStock(product)}
-                      className={`text-xs font-label-md cursor-pointer transition-all ${product.inStock ? "text-red-500 hover:text-red-600" : "text-green-600 hover:text-green-700"}`}
+                      className={`w-10 h-6 rounded-full transition-all cursor-pointer relative ${product.inStock ? "bg-green-500" : "bg-gray-300"}`}
                     >
-                      {product.inStock ? "Mark out of stock" : "Mark in stock"}
+                      <div
+                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform"
+                        style={{ transform: product.inStock ? "translateX(18px)" : "translateX(2px)" }}
+                      />
                     </button>
                   </div>
                 )}

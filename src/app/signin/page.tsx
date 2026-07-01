@@ -174,8 +174,10 @@ export default function SignInPage() {
         email: result.user.email || "",
       }));
       const snapAfter = await getDoc(userRef);
-      const onboarded = snapAfter.exists() && snapAfter.data()?.onboarded === true;
-      router.push(onboarded ? "/dashboard" : "/settings");
+      const data = snapAfter.data();
+      const onboarded = snapAfter.exists() && data?.onboarded === true;
+      const hasPlan = snapAfter.exists() && !!data?.plan;
+      router.push(!hasPlan ? "/choose-plan" : onboarded ? "/dashboard" : "/settings");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid OTP";
       setError(message);
@@ -214,8 +216,10 @@ export default function SignInPage() {
         email: user.email,
       }));
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      const onboarded = userDoc.exists() && userDoc.data()?.onboarded === true;
-      router.push(onboarded ? "/dashboard" : "/settings");
+      const udata = userDoc.data();
+      const onboarded = userDoc.exists() && udata?.onboarded === true;
+      const hasPlan = userDoc.exists() && !!udata?.plan;
+      router.push(!hasPlan ? "/choose-plan" : onboarded ? "/dashboard" : "/settings");
     } catch (err: unknown) {
       let message = "Something went wrong";
       if (err instanceof Error) {

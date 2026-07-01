@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, collection, query, getDocs, where } from "firebase/firestore";
+import { doc, getDoc, collection, query, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import Link from "next/link";
+
+type PlanInfo = {
+  plan: string;
+  trialEndsAt?: { toMillis?: () => number; seconds: number };
+  subscriptionEndsAt?: { toMillis?: () => number; seconds: number };
+  subscriptionPlan?: string;
+} | null;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -14,6 +22,8 @@ export default function DashboardPage() {
   const [revenue, setRevenue] = useState(0);
   const [storeLink, setStoreLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [planInfo, setPlanInfo] = useState<PlanInfo>(null);
+  const [planBanner, setPlanBanner] = useState<{ type: "trial" | "expired" | "paid"; message: string } | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("sellri_user");
@@ -39,6 +49,30 @@ export default function DashboardPage() {
       orderSnap.forEach((d) => { total += d.data().total || 0; });
       setRevenue(total);
       setChecking(false);
+
+      // Plan info
+      const plan = data?.plan;
+      const now = Date.now();
+      if (plan === "trial" && data?.trialEndsAt) {
+        const end = data.trialEndsAt.toMillis ? data.trialEndsAt.toMillis() : data.trialEndsAt.seconds * 1000;
+        const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 0) {
+          setPlanBanner({ type: "expired", message: "Your free trial has ended. Subscribe to keep your store active." });
+        } else {
+          setPlanBanner({ type: "trial", message: `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your free trial` });
+        }
+      } else if (plan === "paid" && data?.subscriptionEndsAt) {
+        const end = data.subscriptionEndsAt.toMillis ? data.subscriptionEndsAt.toMillis() : data.subscriptionEndsAt.seconds * 1000;
+        const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 0) {
+          setPlanBanner({ type: "expired", message: "Your subscription has expired. Renew to keep your store active." });
+        } else {
+          setPlanBanner({ type: "paid", message: `Your plan renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}` });
+        }
+      } else if (plan === "expired") {
+        setPlanBanner({ type: "expired", message: "Your plan has expired. Subscribe to reactivate your store." });
+      }
+      setPlanInfo({ plan, trialEndsAt: data?.trialEndsAt, subscriptionEndsAt: data?.subscriptionEndsAt, subscriptionPlan: data?.subscriptionPlan });
     });
   }, [router]);
 
@@ -54,6 +88,44 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      {planBanner && (
+        <div
+          className={`rounded-2xl p-4 mb-6 flex items-center justify-between gap-4 ${
+            planBanner.type === "expired"
+              ? "bg-red-50 border border-red-200"
+              : planBanner.type === "trial"
+              ? "bg-blue-50 border border-blue-200"
+              : "bg-green-50 border border-green-200"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className={`material-symbols-outlined ${
+                planBanner.type === "expired" ? "text-red-500" : planBanner.type === "trial" ? "text-blue-500" : "text-green-500"
+              }`}
+            >
+              {planBanner.type === "expired" ? "error" : planBanner.type === "trial" ? "timer" : "check_circle"}
+            </span>
+            <p
+              className={`text-sm font-medium ${
+                planBanner.type === "expired" ? "text-red-700" : planBanner.type === "trial" ? "text-blue-700" : "text-green-700"
+              }`}
+            >
+              {planBanner.message}
+            </p>
+          </div>
+          {planBanner.type === "expired" && (
+            <Link
+              href="/choose-plan"
+              className="shrink-0 text-sm font-semibold text-white px-4 py-2 rounded-lg transition-all hover:opacity-90"
+              style={{ backgroundColor: "#f68f1d" }}
+            >
+              Subscribe Now
+            </Link>
+          )}
+        </div>
+      )}
+
       <h1 className="font-display-lg text-3xl md:text-4xl text-on-surface mb-2">
         Welcome{user.name ? `, ${user.name}` : ""}!
       </h1>

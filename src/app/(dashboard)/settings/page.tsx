@@ -1,359 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, linkWithCredential } from "firebase/auth";
-import { auth, db, storage } from "@/lib/firebase";
-import { useLockBody } from "@/hooks/useLockBody";
-
-// ─── CropModal ────────────────────────────────────────────────────────────────
-
-const CROP_SIZE = 300;
-const OUTPUT_SIZE = 400;
-
-function CropModal({
-  file,
-  onCrop,
-  onClose,
-}: {
-  file: File;
-  onCrop: (blob: Blob) => void;
-  onClose: () => void;
-}) {
-  useLockBody(true);
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const dragging = useRef(false);
-  const lastPos = useRef({ x: 0, y: 0 });
-  const pinchRef = useRef<number | null>(null);
-
-  const [zoom, setZoom] = useState(1);
-  const [rotation, setRotation] = useState(0);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [flipH, setFlipH] = useState(false);
-  const [flipV, setFlipV] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img = imgRef.current;
-    if (!canvas || !img || !loaded) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, CROP_SIZE, CROP_SIZE);
-    ctx.save();
-    ctx.translate(CROP_SIZE / 2 + offset.x, CROP_SIZE / 2 + offset.y);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom);
-    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-    ctx.restore();
-  }, [zoom, rotation, offset, flipH, flipV, loaded]);
-
-  useEffect(() => { draw(); }, [draw]);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      imgRef.current = img;
-      const scale = Math.max(CROP_SIZE / img.naturalWidth, CROP_SIZE / img.naturalHeight);
-      setZoom(parseFloat(scale.toFixed(2)));
-      setLoaded(true);
-    };
-    img.src = url;
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const onMouseDown = (e: React.MouseEvent) => {
-    dragging.current = true;
-    lastPos.current = { x: e.clientX, y: e.clientY };
-    e.preventDefault();
-  };
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return;
-      setOffset((p) => ({
-        x: p.x + e.clientX - lastPos.current.x,
-        y: p.y + e.clientY - lastPos.current.y,
-      }));
-      lastPos.current = { x: e.clientX, y: e.clientY };
-    };
-    const onUp = () => { dragging.current = false; };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, []);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      dragging.current = true;
-      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    if (e.touches.length === 2) {
-      pinchRef.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-    }
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && dragging.current) {
-      setOffset((p) => ({
-        x: p.x + e.touches[0].clientX - lastPos.current.x,
-        y: p.y + e.touches[0].clientY - lastPos.current.y,
-      }));
-      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    if (e.touches.length === 2 && pinchRef.current !== null) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const delta = (dist - pinchRef.current) / 150;
-      setZoom((z) => parseFloat(Math.max(0.3, Math.min(5, z + delta)).toFixed(2)));
-      pinchRef.current = dist;
-    }
-  };
-
-  const onTouchEnd = () => { dragging.current = false; pinchRef.current = null; };
-
-  const onWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    setZoom((z) => parseFloat(Math.max(0.3, Math.min(5, z + (e.deltaY < 0 ? 0.08 : -0.08))).toFixed(2)));
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => canvas.removeEventListener("wheel", onWheel);
-  }, [onWheel]);
-
-  const handleReset = () => {
-    const img = imgRef.current;
-    if (!img) return;
-    const scale = Math.max(CROP_SIZE / img.naturalWidth, CROP_SIZE / img.naturalHeight);
-    setZoom(parseFloat(scale.toFixed(2)));
-    setRotation(0);
-    setOffset({ x: 0, y: 0 });
-    setFlipH(false);
-    setFlipV(false);
-  };
-
-  const handleConfirm = () => {
-    const img = imgRef.current;
-    if (!img) return;
-
-    const diag = Math.ceil(Math.sqrt(2) * Math.max(img.naturalWidth, img.naturalHeight) * zoom) + CROP_SIZE;
-
-    const tmp = document.createElement("canvas");
-    tmp.width = diag;
-    tmp.height = diag;
-    const tCtx = tmp.getContext("2d")!;
-    tCtx.save();
-    tCtx.translate(diag / 2 + offset.x, diag / 2 + offset.y);
-    tCtx.rotate((rotation * Math.PI) / 180);
-    tCtx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom);
-    tCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-    tCtx.restore();
-
-    const srcX = diag / 2 - CROP_SIZE / 2;
-    const srcY = diag / 2 - CROP_SIZE / 2;
-
-    const out = document.createElement("canvas");
-    out.width = OUTPUT_SIZE;
-    out.height = OUTPUT_SIZE;
-    out.getContext("2d")!.drawImage(tmp, srcX, srcY, CROP_SIZE, CROP_SIZE, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-
-    out.toBlob((b) => { if (b) onCrop(b); }, "image/jpeg", 0.93);
-  };
-
-  const rotateStep = (dir: 1 | -1) => {
-    setRotation((r) => {
-      const next = r + dir * 90;
-      return next > 180 ? next - 360 : next < -180 ? next + 360 : next;
-    });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
-      onClick={onClose}
-    >
-      <div
-        className="rounded-2xl overflow-hidden w-full"
-        style={{
-          maxWidth: 380,
-          background: "#ffffff",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.32)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
-          <span className="font-semibold text-base text-gray-900">Edit logo</span>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/8 transition-colors"
-            aria-label="Close"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-          </button>
-        </div>
-
-        <div
-          className="relative flex items-center justify-center bg-black select-none"
-          style={{ width: "100%", aspectRatio: "1 / 1" }}
-        >
-          <canvas
-            ref={canvasRef}
-            width={CROP_SIZE}
-            height={CROP_SIZE}
-            style={{ cursor: "grab", width: "100%", height: "100%", display: "block" }}
-            onMouseDown={onMouseDown}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          />
-
-          <svg
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-            viewBox={`0 0 ${CROP_SIZE} ${CROP_SIZE}`}
-            preserveAspectRatio="none"
-          >
-            <line x1={CROP_SIZE / 3} y1="0" x2={CROP_SIZE / 3} y2={CROP_SIZE} stroke="white" strokeWidth="0.6" opacity="0.3" />
-            <line x1={(CROP_SIZE / 3) * 2} y1="0" x2={(CROP_SIZE / 3) * 2} y2={CROP_SIZE} stroke="white" strokeWidth="0.6" opacity="0.3" />
-            <line x1="0" y1={CROP_SIZE / 3} x2={CROP_SIZE} y2={CROP_SIZE / 3} stroke="white" strokeWidth="0.6" opacity="0.3" />
-            <line x1="0" y1={(CROP_SIZE / 3) * 2} x2={CROP_SIZE} y2={(CROP_SIZE / 3) * 2} stroke="white" strokeWidth="0.6" opacity="0.3" />
-            <rect x="0.75" y="0.75" width={CROP_SIZE - 1.5} height={CROP_SIZE - 1.5} fill="none" stroke="white" strokeWidth="1.5" opacity="0.55" />
-            <circle cx={CROP_SIZE / 2} cy={CROP_SIZE / 2} r={CROP_SIZE / 2 - 1} fill="none" stroke="white" strokeWidth="0.6" opacity="0.18" strokeDasharray="5 4" />
-            {([[0,0],[CROP_SIZE,0],[0,CROP_SIZE],[CROP_SIZE,CROP_SIZE]] as [number,number][]).map(([cx, cy], i) => {
-              const dx = cx === 0 ? 1 : -1;
-              const dy = cy === 0 ? 1 : -1;
-              return (
-                <g key={i}>
-                  <line x1={cx} y1={cy} x2={cx + dx * 18} y2={cy} stroke="white" strokeWidth="2.5" />
-                  <line x1={cx} y1={cy} x2={cx} y2={cy + dy * 18} stroke="white" strokeWidth="2.5" />
-                </g>
-              );
-            })}
-          </svg>
-
-          {!loaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/90">
-              <span className="material-symbols-outlined text-white/40" style={{ fontSize: 36, animation: "cropSpin 1s linear infinite" }}>
-                progress_activity
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="px-5 pt-4 pb-2 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-gray-400" style={{ fontSize: 17 }}>zoom_out</span>
-            <input
-              type="range" min="30" max="500" step="1"
-              value={Math.round(zoom * 100)}
-              onChange={(e) => setZoom(parseInt(e.target.value) / 100)}
-              className="flex-1 accent-[#ff6b35]"
-            />
-            <span className="material-symbols-outlined text-gray-400" style={{ fontSize: 17 }}>zoom_in</span>
-            <span className="text-xs text-gray-400 font-medium w-9 text-right">{zoom.toFixed(1)}x</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => rotateStep(-1)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-colors hover:bg-black/6"
-              style={{ border: "1px solid rgba(0,0,0,0.12)" }}
-              title="Rotate -90deg"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>rotate_left</span>
-            </button>
-            <input
-              type="range" min="-180" max="180" step="1"
-              value={rotation}
-              onChange={(e) => setRotation(parseInt(e.target.value))}
-              className="flex-1 accent-[#ff6b35]"
-            />
-            <button
-              onClick={() => rotateStep(1)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-colors hover:bg-black/6"
-              style={{ border: "1px solid rgba(0,0,0,0.12)" }}
-              title="Rotate +90deg"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>rotate_right</span>
-            </button>
-            <span className="text-xs text-gray-400 font-medium w-9 text-right">{rotation}deg</span>
-          </div>
-
-          <div className="flex items-center gap-2 pb-1">
-            <button
-              onClick={() => setFlipH((f) => !f)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all"
-              style={{
-                border: flipH ? "1px solid transparent" : "1px solid rgba(0,0,0,0.12)",
-                background: flipH ? "rgba(255,107,53,0.1)" : "rgba(0,0,0,0.03)",
-                color: flipH ? "#ff6b35" : "#555",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>flip</span>
-              Flip H
-            </button>
-            <button
-              onClick={() => setFlipV((f) => !f)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all"
-              style={{
-                border: flipV ? "1px solid transparent" : "1px solid rgba(0,0,0,0.12)",
-                background: flipV ? "rgba(255,107,53,0.1)" : "rgba(0,0,0,0.03)",
-                color: flipV ? "#ff6b35" : "#555",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14, transform: "rotate(90deg)", display: "inline-block" }}>flip</span>
-              Flip V
-            </button>
-            <div className="flex-1" />
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors hover:bg-black/6"
-              style={{ border: "1px solid rgba(0,0,0,0.12)", color: "#555" }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>restart_alt</span>
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="flex gap-3 px-5 pb-5">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-colors hover:bg-black/6"
-            style={{ border: "1px solid rgba(0,0,0,0.12)", color: "#555" }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="flex-[2] py-2.5 rounded-xl text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90 active:scale-[0.98]"
-            style={{ background: "#ff6b35", boxShadow: "0 4px 14px rgba(255,107,53,0.35)" }}
-          >
-            Save logo
-          </button>
-        </div>
-      </div>
-
-      <style>{`@keyframes cropSpin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
+import { auth, db } from "@/lib/firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, linkWithCredential } from "firebase/auth";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -380,22 +31,16 @@ export default function SettingsPage() {
   const [userDoc, setUserDoc] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState<"store" | "orders">("store");
-  const [tab, setTab] = useState<"store" | "orders" | "password">("store");
+  const [step, setStep] = useState<"store" | "preferences" | "orders">("store");
+  const [tab, setTab] = useState<"store" | "preferences" | "orders" | "password">("store");
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [hasPasswordAuth, setHasPasswordAuth] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
 
   const [storeName, setStoreName] = useState("");
   const [storeSlug, setStoreSlug] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [bio, setBio] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [storeLogo, setStoreLogo] = useState<string>("");
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -405,6 +50,19 @@ export default function SettingsPage() {
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [allowCustomOrders, setAllowCustomOrders] = useState(false);
   const [makeToOrder, setMakeToOrder] = useState(false);
+
+  const [deliveryType, setDeliveryType] = useState<"none" | "flat">("none");
+  const [deliveryFlatFee, setDeliveryFlatFee] = useState("");
+  const [deliveryFreeThresholdEnabled, setDeliveryFreeThresholdEnabled] = useState(false);
+  const [deliveryFreeThreshold, setDeliveryFreeThreshold] = useState("");
+
+  const [customerFields, setCustomerFields] = useState({
+    name: true,
+    phone: false,
+    email: false,
+    address: false,
+    message: false,
+  });
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -433,7 +91,6 @@ export default function SettingsPage() {
         setStoreSlug(data.slug || generateSlug(data.name || u.name || "store"));
         setBio(data.bio || "");
         setWhatsapp(data.whatsapp || "");
-        setStoreLogo(data.photoURL || "");
         setNewEmail(data.email || u.email || "");
         setNewPhone(data.phone || "");
         setOrderMethod(data.orderMethod || "whatsapp");
@@ -441,6 +98,17 @@ export default function SettingsPage() {
         setRazorpayKeySecret(data.razorpayKeySecret || "");
         setAllowCustomOrders(data.allowCustomOrders ?? false);
         setMakeToOrder(data.makeToOrder ?? false);
+        setDeliveryType(data.delivery?.type === "flat" ? "flat" : "none");
+        setDeliveryFlatFee(data.delivery?.flatFee?.toString() || "");
+        setDeliveryFreeThresholdEnabled((data.delivery?.freeThreshold ?? 0) > 0);
+        setDeliveryFreeThreshold(data.delivery?.freeThreshold?.toString() || "");
+        setCustomerFields({
+          name: data.customerFields?.name ?? true,
+          phone: data.customerFields?.phone ?? false,
+          email: data.customerFields?.email ?? false,
+          address: data.customerFields?.address ?? false,
+          message: data.customerFields?.message ?? false,
+        });
         if (data.onboarded !== true) setIsFirstTime(true);
       }
       const cu = auth.currentUser;
@@ -456,39 +124,6 @@ export default function SettingsPage() {
       setStoreSlug(generateSlug(storeName));
     }
   }, [storeName, slugManuallyEdited]);
-
-  const handlePhotoDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) setCropFile(file);
-  }, []);
-
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCropFile(file);
-      e.target.value = "";
-    }
-  };
-
-  function handleCropComplete(blob: Blob) {
-    const croppedFile = new File([blob], "logo.jpg", { type: "image/jpeg" });
-    setLogoFile(croppedFile);
-    if (storeLogo.startsWith("blob:")) URL.revokeObjectURL(storeLogo);
-    setStoreLogo(URL.createObjectURL(blob));
-    setCropFile(null);
-  }
-
-  async function uploadPhoto(): Promise<string> {
-    if (!logoFile || !user) return storeLogo;
-    setLogoUploading(true);
-    const storageRef = ref(storage, `profilePhotos/${user.uid}`);
-    await uploadBytes(storageRef, logoFile);
-    const url = await getDownloadURL(storageRef);
-    setLogoUploading(false);
-    return url;
-  }
 
   async function handleSaveStore() {
     if (!user) return;
@@ -508,14 +143,11 @@ export default function SettingsPage() {
         return;
       }
 
-      let photoURL = storeLogo;
-      if (logoFile) photoURL = await uploadPhoto();
       const updates: Record<string, any> = {
         name: storeName,
         slug,
         bio,
         whatsapp,
-        photoURL,
         onboarded: true,
         updatedAt: serverTimestamp(),
       };
@@ -528,6 +160,24 @@ export default function SettingsPage() {
         name: storeName,
       }));
       setMessage("Store saved!");
+      if (isFirstTime) setStep("preferences");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSavePreferences() {
+    if (!user) return;
+    setError(""); setMessage(""); setSaving(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        allowCustomOrders,
+        makeToOrder,
+        updatedAt: serverTimestamp(),
+      });
+      setMessage("Preferences saved!");
       if (isFirstTime) setStep("orders");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -536,19 +186,24 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleSaveOrders() {
+  async function handleSavePayments() {
     if (!user) return;
     setError(""); setMessage(""); setSaving(true);
     try {
+      const delivery = orderMethod === "razorpay" ? {
+        type: deliveryType,
+        flatFee: deliveryType === "flat" ? Number(deliveryFlatFee) || 0 : 0,
+        freeThreshold: deliveryType === "flat" && deliveryFreeThresholdEnabled ? Number(deliveryFreeThreshold) || 0 : 0,
+      } : { type: "none", flatFee: 0, freeThreshold: 0 };
       await updateDoc(doc(db, "users", user.uid), {
         orderMethod,
-        allowCustomOrders,
-        makeToOrder,
         razorpayKeyId: orderMethod === "razorpay" ? razorpayKeyId : "",
         razorpayKeySecret: orderMethod === "razorpay" ? razorpayKeySecret : "",
+        delivery,
+        customerFields: orderMethod === "razorpay" ? customerFields : { name: true, phone: false, email: false, address: false, message: false },
         updatedAt: serverTimestamp(),
       });
-      setMessage("Order preferences saved!");
+      setMessage("Payment settings saved!");
       if (isFirstTime) {
         await updateDoc(doc(db, "users", user!.uid), { onboarded: true, updatedAt: serverTimestamp() });
         router.push("/dashboard");
@@ -601,7 +256,7 @@ export default function SettingsPage() {
     );
   }
 
-  const steps = ["store", "orders"] as const;
+  const steps = ["store", "preferences", "orders"] as const;
 
   return (
     <div className="max-w-4xl mx-auto py-4 md:py-6">
@@ -629,24 +284,34 @@ export default function SettingsPage() {
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-label-sm text-red-600 mb-6">{error}</div>
+        <div className="fixed top-6 right-6 z-[100] bg-red-50 border border-red-200 rounded-xl px-5 py-3.5 font-label-sm text-red-600 shadow-lg" style={{ animation: "slideInRight 0.2s ease-out" }}>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-red-500" style={{ fontSize: 18 }}>error</span>
+            {error}
+          </div>
+        </div>
       )}
       {message && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 font-label-sm text-green-600 mb-6">{message}</div>
+        <div className="fixed top-6 right-6 z-[100] bg-green-50 border border-green-200 rounded-xl px-5 py-3.5 font-label-sm text-green-600 shadow-lg" style={{ animation: "slideInRight 0.2s ease-out" }}>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-green-500" style={{ fontSize: 18 }}>check_circle</span>
+            {message}
+          </div>
+        </div>
       )}
 
       {/* ── Tab Navigation (settings only) ───────────────────────────── */}
       {!isFirstTime && (
-        <div className="flex border-b border-outline-variant/30 mb-6">
-          {(["store", "orders", "password"] as const).map((t) => (
+        <div className="flex border-b border-outline-variant/30 mb-6 overflow-x-auto">
+          {(["store", "preferences", "orders", "password"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-6 py-3 font-label-md capitalize transition-all cursor-pointer relative ${
+              className={`px-6 py-3 font-label-md capitalize whitespace-nowrap transition-all cursor-pointer relative ${
                 tab === t ? "text-primary font-semibold" : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              {t === "store" ? "Store" : t === "orders" ? "Orders" : "Password"}
+              {t === "store" ? "Store" : t === "preferences" ? "Preferences" : t === "orders" ? "Payments" : "Password"}
               {tab === t && (
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: "#ff6b35" }} />
               )}
@@ -660,64 +325,7 @@ export default function SettingsPage() {
         <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
           {isFirstTime && <h2 className="font-headline-md text-xl text-on-surface mb-6">Store Details</h2>}
 
-          <div className="md:grid md:grid-cols-2 md:gap-x-8 space-y-5 md:space-y-0">
-            {/* Left column - Logo */}
-            <div>
-              <label className="block font-label-md text-sm text-on-surface mb-2">Store Logo</label>
-
-              <div className="relative w-32 h-32 mx-auto md:mx-0">
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={handlePhotoDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-32 h-32 rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer overflow-hidden transition-colors ${
-                    dragOver ? "border-primary bg-primary-container/10" : "border-outline-variant hover:border-primary"
-                  }`}
-                >
-                  {storeLogo ? (
-                    <img src={storeLogo} alt="Store logo" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center text-on-surface-variant">
-                      <span className="material-symbols-outlined text-3xl block mx-auto">store</span>
-                      <span className="text-xs mt-1 block">Drop or click</span>
-                    </div>
-                  )}
-                  {logoUploading && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
-                      <span className="text-white text-sm">Uploading...</span>
-                    </div>
-                  )}
-                </div>
-
-                {storeLogo && !logoUploading && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90 transition-opacity"
-                    style={{ background: "#ff6b35" }}
-                    title="Change logo"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
-                  </button>
-                )}
-              </div>
-
-              <p className="text-xs text-center md:text-left text-on-surface-variant mt-3">
-                {storeLogo
-                  ? "Tap the pencil to swap or re-crop"
-                  : "JPG, PNG or WebP . max 10 MB"}
-              </p>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-            </div>
-
-            {/* Right column - Fields */}
+          <div className="md:grid md:grid-cols-1 md:gap-x-8 space-y-5 md:space-y-0">
             <div className="space-y-5">
               <div>
                 <label className="block font-label-md text-sm text-on-surface mb-1">Store Name</label>
@@ -860,15 +468,15 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      {/* ── Orders Card (onboarding step or settings tab) ─────────────── */}
-      {(step === "orders" && isFirstTime) || (tab === "orders" && !isFirstTime) ? (
+      {/* ── Preferences Card ─────────────────────────────────────────── */}
+      {(step === "preferences" && isFirstTime) || (tab === "preferences" && !isFirstTime) ? (
         <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
-          <h2 className="font-headline-md text-xl text-on-surface mb-2">Order Preferences</h2>
-          <p className="text-on-surface-variant mb-6">Manage how customers place orders on your storefront.</p>
+          <h2 className="font-headline-md text-xl text-on-surface mb-2">Store Preferences</h2>
+          <p className="text-on-surface-variant mb-6">Customise how your store works.</p>
 
           {/* Store Preferences */}
           <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
-            <h3 className="font-label-md font-semibold text-on-surface">Store Preferences</h3>
+            <h3 className="font-label-md font-semibold text-on-surface">Ordering</h3>
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-label-md text-sm text-on-surface">Allow custom orders</p>
@@ -904,6 +512,27 @@ export default function SettingsPage() {
               </label>
             </div>
           </div>
+
+          <button
+            onClick={handleSavePreferences} disabled={saving}
+            className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
+            style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
+          >
+            {saving ? "Saving..." : isFirstTime ? "Save & Continue" : "Save Changes"}
+          </button>
+          {isFirstTime && (
+            <button onClick={handleSkip} className="mt-3 w-full py-3 rounded-xl font-label-md text-on-surface-variant hover:text-on-surface border border-outline transition-all cursor-pointer">
+              Skip
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {/* ── Payments Card ─────────────────────────────────────────────── */}
+      {(step === "orders" && isFirstTime) || (tab === "orders" && !isFirstTime) ? (
+        <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
+          <h2 className="font-headline-md text-xl text-on-surface mb-2">Payment Settings</h2>
+          <p className="text-on-surface-variant mb-6">Configure how customers pay on your store.</p>
 
           <h3 className="font-label-md font-semibold text-on-surface mb-4">Payment Method</h3>
           <div className="space-y-4 mb-6">
@@ -963,8 +592,133 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {orderMethod === "razorpay" && (
+            <>
+              {/* Delivery Settings */}
+              <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
+                <h3 className="font-label-md font-semibold text-on-surface">Delivery</h3>
+                <div className="space-y-3">
+                  {(["none", "flat"] as const).map((t) => (
+                    <label key={t} className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                      deliveryType === t ? "border-primary bg-primary-container/5" : "border-outline hover:border-primary"
+                    }`}>
+                      <input
+                        type="radio" name="deliveryType" value={t}
+                        checked={deliveryType === t}
+                        onChange={() => setDeliveryType(t)}
+                        className="mt-1 accent-primary"
+                      />
+                      <div>
+                        <p className="font-label-md font-bold text-on-surface text-sm">
+                          {t === "none" ? "No Delivery Fee" : "Flat Delivery Price"}
+                        </p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">
+                          {t === "none" ? "No delivery charges added." : "A fixed fee for every order."}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {deliveryType === "flat" && (
+                  <>
+                    <div>
+                      <label className="block font-label-md text-sm text-on-surface mb-1">Flat Delivery Fee (₹)</label>
+                      <input
+                        type="number" min="0" value={deliveryFlatFee}
+                        onChange={(e) => setDeliveryFlatFee(e.target.value.replace(/\D/g, ""))}
+                        className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                        placeholder="50"
+                      />
+                    </div>
+                    <div className="bg-white rounded-xl p-4 border border-outline/40">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-label-md text-sm text-on-surface">Free delivery threshold</p>
+                          <p className="text-xs text-on-surface-variant mt-0.5">Waive the fee on orders above a certain amount.</p>
+                        </div>
+                        <label className="flex items-center cursor-pointer">
+                          <div
+                            onClick={() => setDeliveryFreeThresholdEnabled(!deliveryFreeThresholdEnabled)}
+                            className={`w-11 h-6 rounded-full relative transition-colors ${deliveryFreeThresholdEnabled ? "bg-green-500" : "bg-gray-300"}`}
+                          >
+                            <div
+                              className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                              style={{ transform: deliveryFreeThresholdEnabled ? "translateX(20px)" : "translateX(0)" }}
+                            />
+                          </div>
+                        </label>
+                      </div>
+                      {deliveryFreeThresholdEnabled && (
+                        <div className="mt-3">
+                          <label className="block font-label-md text-xs text-on-surface mb-1">Free delivery above (₹)</label>
+                          <input
+                            type="number" min="0" value={deliveryFreeThreshold}
+                            onChange={(e) => setDeliveryFreeThreshold(e.target.value.replace(/\D/g, ""))}
+                            className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                            placeholder="e.g. 500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Customer Details Toggles */}
+              <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
+                <h3 className="font-label-md font-semibold text-on-surface">Checkout Details to Collect</h3>
+                <p className="text-xs text-on-surface-variant -mt-2">Customers will fill these before paying. At least one contact method (Phone or Email) is required.</p>
+                {(["name", "phone", "email", "address"] as const).map((field) => (
+                  <div key={field} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-label-md text-sm text-on-surface capitalize">{field === "address" ? "Delivery address" : field}</p>
+                      <p className="text-xs text-on-surface-variant">{field === "name" ? "Always collected" : field === "phone" ? "Used for OTP tracking & updates" : field === "email" ? "Order confirmation & tracking link" : "Required for shipping"}</p>
+                    </div>
+                    <label className="flex items-center cursor-pointer">
+                      <div
+                        onClick={() => {
+                          if (field === "name") return;
+                          if (field === "phone" && customerFields.phone && !customerFields.email) return;
+                          if (field === "email" && customerFields.email && !customerFields.phone) return;
+                          setCustomerFields((prev) => ({ ...prev, [field]: !prev[field] }));
+                        }}
+                        className={`w-11 h-6 rounded-full relative transition-colors ${customerFields[field] ? "bg-green-500" : "bg-gray-300"} ${field === "name" ? "opacity-60 cursor-not-allowed" : ""}`}
+                      >
+                        <div
+                          className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                          style={{ transform: customerFields[field] ? "translateX(20px)" : "translateX(0)" }}
+                        />
+                      </div>
+                    </label>
+                  </div>
+                ))}
+                {!customerFields.phone && !customerFields.email && (
+                  <p className="text-xs text-red-500 text-center">Enable Phone or Email — at least one contact method is required.</p>
+                )}
+                <div className="border-t border-outline-variant/20 pt-3">
+                  {(["message"] as const).map((field) => (
+                    <div key={field} className="flex items-center justify-between py-1.5">
+                      <p className="font-label-md text-sm text-on-surface capitalize">{field === "message" ? "Custom message / order note" : field}</p>
+                      <label className="flex items-center cursor-pointer">
+                        <div
+                          onClick={() => setCustomerFields((prev) => ({ ...prev, [field]: !prev[field] }))}
+                          className={`w-11 h-6 rounded-full relative transition-colors ${customerFields[field] ? "bg-green-500" : "bg-gray-300"}`}
+                        >
+                          <div
+                            className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                            style={{ transform: customerFields[field] ? "translateX(20px)" : "translateX(0)" }}
+                          />
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           <button
-            onClick={handleSaveOrders} disabled={saving}
+            onClick={handleSavePayments} disabled={saving}
             className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
             style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
           >
@@ -1026,9 +780,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {cropFile && (
-        <CropModal file={cropFile} onCrop={handleCropComplete} onClose={() => setCropFile(null)} />
-      )}
     </div>
   );
 }
