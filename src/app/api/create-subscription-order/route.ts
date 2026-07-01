@@ -18,13 +18,16 @@ const PLAN_DURATIONS: Record<string, number> = {
 };
 
 async function rzpFetch(path: string, options?: RequestInit) {
-  const auth = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
   const res = await fetch(`https://api.razorpay.com${path}`, {
     headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
     ...options,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.description || "Razorpay error");
+  if (!res.ok) {
+    const detail = data.error?.description || data.error?.message || JSON.stringify(data);
+    throw new Error(detail);
+  }
   return data;
 }
 
@@ -71,9 +74,11 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Verify signature
+    // Verify signature: HMAC(order_id + "|" + payment_id, key_secret)
     const { createHmac } = await import("crypto");
-    const expectedSig = createHmac("sha256", RAZORPAY_KEY_SECRET).update(`${razorpayOrderId}|${razorpayPaymentId}`).digest("hex");
+    const expectedSig = createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest("hex");
     if (expectedSig !== razorpaySignature) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }

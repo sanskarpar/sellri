@@ -56,7 +56,7 @@ export default function Navbar({ storefrontNavbar }: { storefrontNavbar?: Storef
   return (
     <>
       <nav
-        className="w-full z-50 transition-all duration-300 sticky top-0"
+        className={`w-full z-50 transition-all duration-300 ${pathname === "/signin" ? "" : "sticky top-0"}`}
         style={{
           backgroundColor: bgImage ? "transparent" : bgColor,
           backgroundImage: bgImage ? `url(${bgImage})` : undefined,

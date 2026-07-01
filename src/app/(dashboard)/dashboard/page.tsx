@@ -6,13 +6,6 @@ import { doc, getDoc, collection, query, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 
-type PlanInfo = {
-  plan: string;
-  trialEndsAt?: { toMillis?: () => number; seconds: number };
-  subscriptionEndsAt?: { toMillis?: () => number; seconds: number };
-  subscriptionPlan?: string;
-} | null;
-
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ uid: string; name: string; email: string } | null>(null);
@@ -22,7 +15,6 @@ export default function DashboardPage() {
   const [revenue, setRevenue] = useState(0);
   const [storeLink, setStoreLink] = useState("");
   const [copied, setCopied] = useState(false);
-  const [planInfo, setPlanInfo] = useState<PlanInfo>(null);
   const [planBanner, setPlanBanner] = useState<{ type: "trial" | "expired" | "paid"; message: string } | null>(null);
 
   useEffect(() => {
@@ -50,7 +42,7 @@ export default function DashboardPage() {
       setRevenue(total);
       setChecking(false);
 
-      // Plan info
+      // Plan info — only show trial-related banners on dashboard
       const plan = data?.plan;
       const now = Date.now();
       if (plan === "trial" && data?.trialEndsAt) {
@@ -61,18 +53,14 @@ export default function DashboardPage() {
         } else {
           setPlanBanner({ type: "trial", message: `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your free trial` });
         }
-      } else if (plan === "paid" && data?.subscriptionEndsAt) {
+      } else if ((plan === "paid" || plan === "expired") && data?.subscriptionEndsAt) {
         const end = data.subscriptionEndsAt.toMillis ? data.subscriptionEndsAt.toMillis() : data.subscriptionEndsAt.seconds * 1000;
-        const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-        if (daysLeft <= 0) {
+        if (now > end) {
           setPlanBanner({ type: "expired", message: "Your subscription has expired. Renew to keep your store active." });
-        } else {
-          setPlanBanner({ type: "paid", message: `Your plan renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}` });
         }
       } else if (plan === "expired") {
         setPlanBanner({ type: "expired", message: "Your plan has expired. Subscribe to reactivate your store." });
       }
-      setPlanInfo({ plan, trialEndsAt: data?.trialEndsAt, subscriptionEndsAt: data?.subscriptionEndsAt, subscriptionPlan: data?.subscriptionPlan });
     });
   }, [router]);
 
@@ -136,15 +124,15 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="font-label-md text-sm text-on-surface-variant mb-1">Your store link</p>
-            <p className="text-sm text-on-surface truncate">{storeLink}</p>
+            <a href={storeLink} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-black truncate block hover:underline">{storeLink}</a>
           </div>
           <button
             onClick={copyStoreLink}
-            className="flex items-center gap-2 py-2.5 px-5 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
-            style={{ backgroundColor: "#ff6b35", boxShadow: "0 4px 12px rgba(255,107,53,0.2)" }}
+            className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-black/5 active:scale-[0.95] transition-all cursor-pointer shrink-0"
+            style={{ color: copied ? "#22c55e" : "#6b7280" }}
+            title="Copy link"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{copied ? "check" : "content_copy"}</span>
-            {copied ? "Copied!" : "Copy Link"}
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{copied ? "check" : "content_copy"}</span>
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, linkWithCredential } from "firebase/auth";
@@ -23,6 +24,22 @@ async function slugExists(slug: string, excludeUid: string): Promise<boolean> {
   return snap.docs.some((d) => d.id !== excludeUid);
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  "1month": "1 Month Plan",
+  "3months": "3 Months Plan",
+  "6months": "6 Months Plan",
+  "12months": "12 Months Plan",
+};
+
+function getPlanLabel(key?: string): string {
+  return key ? PLAN_LABELS[key] || "Paid Plan" : "Paid Plan";
+}
+
+function formatDate(ts: { toMillis?: () => number; seconds: number }): string {
+  const d = new Date(ts.toMillis ? ts.toMillis() : ts.seconds * 1000);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+}
+
 // ─── SettingsPage ─────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -32,7 +49,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"store" | "preferences" | "orders">("store");
-  const [tab, setTab] = useState<"store" | "preferences" | "orders" | "password">("store");
+  const [tab, setTab] = useState<"store" | "preferences" | "orders" | "account">("store");
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [hasPasswordAuth, setHasPasswordAuth] = useState(false);
 
@@ -69,6 +86,9 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [passwordError, setPasswordError] = useState("");
+
+  const [plan, setPlan] = useState<string | null>(null);
+  const [planBanner, setPlanBanner] = useState<{ type: "trial" | "expired" | "paid"; message: string } | null>(null);
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -110,6 +130,31 @@ export default function SettingsPage() {
           message: data.customerFields?.message ?? false,
         });
         if (data.onboarded !== true) setIsFirstTime(true);
+
+        // Plan status
+        const p = data?.plan;
+        const now = Date.now();
+        if (p === "trial" && data?.trialEndsAt) {
+          const end = data.trialEndsAt.toMillis ? data.trialEndsAt.toMillis() : data.trialEndsAt.seconds * 1000;
+          const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 0) {
+            setPlanBanner({ type: "expired", message: "Your free trial has ended. Subscribe to keep your store active." });
+          } else {
+            setPlanBanner({ type: "trial", message: `${daysLeft} day${daysLeft === 1 ? "" : "s"} left in your free trial` });
+          }
+          setPlan(p);
+        } else if (p === "paid" && data?.subscriptionEndsAt) {
+          const end = data.subscriptionEndsAt.toMillis ? data.subscriptionEndsAt.toMillis() : data.subscriptionEndsAt.seconds * 1000;
+          if (now > end) {
+            setPlanBanner({ type: "expired", message: "Your subscription has expired. Renew to keep your store active." });
+          } else {
+            setPlanBanner({ type: "paid", message: `${data.subscriptionPlan || "Plan"} active` });
+          }
+          setPlan(p);
+        } else if (p === "expired") {
+          setPlanBanner({ type: "expired", message: "Your plan has expired. Subscribe to reactivate your store." });
+          setPlan(p);
+        }
       }
       const cu = auth.currentUser;
       if (cu) setHasPasswordAuth(cu.providerData?.some((p) => p.providerId === "password") ?? false);
@@ -303,7 +348,7 @@ export default function SettingsPage() {
       {/* ── Tab Navigation (settings only) ───────────────────────────── */}
       {!isFirstTime && (
         <div className="flex border-b border-outline-variant/30 mb-6 overflow-x-auto">
-          {(["store", "preferences", "orders", "password"] as const).map((t) => (
+          {(["store", "preferences", "orders", "account"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -311,7 +356,7 @@ export default function SettingsPage() {
                 tab === t ? "text-primary font-semibold" : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              {t === "store" ? "Store" : t === "preferences" ? "Preferences" : t === "orders" ? "Payments" : "Password"}
+              {t === "store" ? "Store" : t === "preferences" ? "Preferences" : t === "orders" ? "Payments" : "Account"}
               {tab === t && (
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: "#ff6b35" }} />
               )}
@@ -340,8 +385,8 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block font-label-md text-sm text-on-surface mb-1">Store URL</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-on-surface-variant shrink-0 whitespace-nowrap">sellri.com/store/</span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="text-sm text-on-surface-variant shrink-0">sellri.in/</span>
                   <input
                     type="text"
                     value={storeSlug}
@@ -349,7 +394,7 @@ export default function SettingsPage() {
                       setSlugManuallyEdited(true);
                       setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
                     }}
-                    className="flex-1 px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                    className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md min-w-0"
                     placeholder="rahuls-store"
                   />
                 </div>
@@ -732,51 +777,126 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      {/* ── Password Tab (settings only) ─────────────────────────────── */}
-      {tab === "password" && !isFirstTime && !newEmail && (
-        <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-3 block">mail</span>
-          <h2 className="font-headline-md text-xl text-on-surface mb-2">Password</h2>
-          <p className="text-on-surface-variant">Please add an email address in your <button onClick={() => setTab("store")} className="text-primary underline cursor-pointer">Store tab</button> first.</p>
-        </div>
-      )}
-      {tab === "password" && !isFirstTime && newEmail && (
-        <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
-          <h2 className="font-headline-md text-xl text-on-surface mb-2">{hasPasswordAuth ? "Change Password" : "Set Password"}</h2>
-          <p className="text-on-surface-variant mb-6">{hasPasswordAuth ? "Update your account password." : "Set a password to sign in with your email."}</p>
-
-          {passwordError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-label-sm text-red-600 mb-4">{passwordError}</div>
-          )}
-          {passwordMsg && (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 font-label-sm text-green-600 mb-4">{passwordMsg}</div>
-          )}
-
-          <div className="space-y-4">
-            {[
-              ...(hasPasswordAuth ? [{ label: "Current Password", value: currentPassword, set: setCurrentPassword, ph: "Enter current password" }] : []),
-              { label: "New Password", value: newPassword, set: setNewPassword, ph: "Min 6 characters" },
-              { label: "Confirm New Password", value: confirmPassword, set: setConfirmPassword, ph: "Re-enter new password" },
-            ].map(({ label, value, set, ph }) => (
-              <div key={label}>
-                <label className="block font-label-md text-sm text-on-surface mb-1">{label}</label>
-                <input
-                  type="password" value={value}
-                  onChange={(e) => set(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
-                  placeholder={ph}
-                />
+      {/* ── Account Tab (plan + password) ─────────────────────────────── */}
+      {tab === "account" && !isFirstTime && (
+        <div className="space-y-6">
+          {/* Plan status */}
+          {plan && (
+            <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  planBanner?.type === "expired" ? "bg-red-100" : planBanner?.type === "trial" ? "bg-blue-100" : "bg-green-100"
+                }`}>
+                  <span className={`material-symbols-outlined ${
+                    planBanner?.type === "expired" ? "text-red-600" : planBanner?.type === "trial" ? "text-blue-600" : "text-green-600"
+                  }`}>
+                    {planBanner?.type === "expired" ? "error" : planBanner?.type === "trial" ? "timer" : "check_circle"}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-on-surface-variant">Your Plan</p>
+                  <p className="text-lg font-bold text-on-surface">
+                    {plan === "trial" ? "Free Trial" : plan === "paid" ? getPlanLabel(userDoc?.subscriptionPlan) : "Expired"}
+                  </p>
+                </div>
               </div>
-            ))}
-          </div>
 
-          <button
-            onClick={handleChangePassword} disabled={saving}
-            className="w-full mt-8 py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-            style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
-          >
-            {saving ? "Saving..." : hasPasswordAuth ? "Change Password" : "Set Password"}
-          </button>
+              <div className="bg-surface-container-low rounded-xl p-4 mb-4 space-y-2">
+                {plan === "trial" && userDoc?.trialEndsAt && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-on-surface-variant">Expires on</span>
+                      <span className="font-semibold text-on-surface">
+                        {formatDate(userDoc.trialEndsAt)}
+                      </span>
+                    </div>
+                    {planBanner?.type === "expired" && (
+                      <p className="text-sm text-red-600">Your trial has ended. Subscribe to keep your store online.</p>
+                    )}
+                    {planBanner?.type === "trial" && (
+                      <p className="text-sm text-blue-600">Renew now to keep your store active after the trial.</p>
+                    )}
+                  </>
+                )}
+                {plan === "paid" && userDoc?.subscriptionEndsAt && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-on-surface-variant">Expires on</span>
+                      <span className="font-semibold text-on-surface">
+                        {formatDate(userDoc.subscriptionEndsAt)}
+                      </span>
+                    </div>
+                    {planBanner?.type === "paid" && (
+                      <p className="text-sm text-green-600">Your store is live. Renew before expiry to avoid deactivation.</p>
+                    )}
+                    {planBanner?.type === "expired" && (
+                      <p className="text-sm text-red-600">Your plan has expired. Renew now to reactivate your store.</p>
+                    )}
+                  </>
+                )}
+                {plan === "expired" && (
+                  <p className="text-sm text-red-600">Your plan has expired. Subscribe now to reactivate your store and start selling again.</p>
+                )}
+              </div>
+
+              {(planBanner?.type === "expired" || plan === "trial" || plan === "paid") && (
+                <Link
+                  href="/choose-plan"
+                  className="block w-full text-center py-3 rounded-xl font-semibold text-white transition-all active:scale-[0.98] hover:opacity-90"
+                  style={{ backgroundColor: "#ff6b35", boxShadow: "0 4px 12px rgba(255,107,53,0.25)" }}
+                >
+                  {plan === "trial" ? "Subscribe Now" : "Renew Now"}
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Password */}
+          {!newEmail ? (
+            <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm text-center">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-3 block">mail</span>
+              <h2 className="font-headline-md text-xl text-on-surface mb-2">Password</h2>
+              <p className="text-on-surface-variant">Please add an email address in your <button onClick={() => setTab("store")} className="text-primary underline cursor-pointer">Store tab</button> first.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
+              <h2 className="font-headline-md text-xl text-on-surface mb-2">{hasPasswordAuth ? "Change Password" : "Set Password"}</h2>
+              <p className="text-on-surface-variant mb-6">{hasPasswordAuth ? "Update your account password." : "Set a password to sign in with your email."}</p>
+
+              {passwordError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-label-sm text-red-600 mb-4">{passwordError}</div>
+              )}
+              {passwordMsg && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 font-label-sm text-green-600 mb-4">{passwordMsg}</div>
+              )}
+
+              <div className="space-y-4">
+                {[
+                  ...(hasPasswordAuth ? [{ label: "Current Password", value: currentPassword, set: setCurrentPassword, ph: "Enter current password" }] : []),
+                  { label: "New Password", value: newPassword, set: setNewPassword, ph: "Min 6 characters" },
+                  { label: "Confirm New Password", value: confirmPassword, set: setConfirmPassword, ph: "Re-enter new password" },
+                ].map(({ label, value, set, ph }) => (
+                  <div key={label}>
+                    <label className="block font-label-md text-sm text-on-surface mb-1">{label}</label>
+                    <input
+                      type="password" value={value}
+                      onChange={(e) => set(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                      placeholder={ph}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleChangePassword} disabled={saving}
+                className="w-full mt-8 py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
+                style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
+              >
+                {saving ? "Saving..." : hasPasswordAuth ? "Change Password" : "Set Password"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

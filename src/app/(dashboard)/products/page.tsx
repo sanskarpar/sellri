@@ -331,6 +331,21 @@ export default function ProductsPage() {
                   </div>
                 )}
               </div>
+              {/* Mobile: always-visible actions */}
+              <div className="md:hidden flex items-center gap-2 px-4 pb-4 pt-0">
+                <button
+                  onClick={() => openEditForm(product)}
+                  className="flex-1 py-2.5 rounded-xl border border-outline-variant/30 text-sm font-label-md text-on-surface hover:bg-black/5 transition-colors cursor-pointer"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setDeleteTarget(product)}
+                  className="flex-1 py-2.5 rounded-xl border border-red-200 text-sm font-label-md text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signInWithPhoneNumber, RecaptchaVerifier, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, RecaptchaVerifier, signInWithPhoneNumber, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -27,6 +27,7 @@ export default function SignInPage() {
   const [resendTimer, setResendTimer] = useState(30);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const testingModeSet = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -47,6 +48,10 @@ export default function SignInPage() {
   }, [resendCooldown, resendTimer]);
 
   useEffect(() => {
+    if (!testingModeSet.current) {
+      (auth as any).settings.appVerificationDisabledForTesting = true;
+      testingModeSet.current = true;
+    }
     return () => {
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.clear();
@@ -56,29 +61,15 @@ export default function SignInPage() {
   }, []);
 
   function setupRecaptcha() {
-    if ((window as any).recaptchaVerifier) return;
+    if ((window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier.clear();
+      (window as any).recaptchaVerifier = null;
+    }
     if (!recaptchaContainerRef.current) return;
     (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
       size: "invisible",
       callback: () => {},
     });
-  }
-
-  function switchMode(m: "signin" | "signup") {
-    setMode(m);
-    setAuthMethod("email");
-    setOtpSent(false);
-    setOtp("");
-    setOtpDigits(["", "", "", "", "", ""]);
-    setError("");
-  }
-
-  function switchAuthMethod(m: "email" | "phone") {
-    setAuthMethod(m);
-    setOtpSent(false);
-    setOtp("");
-    setOtpDigits(["", "", "", "", "", ""]);
-    setError("");
   }
 
   async function handleSendOtp() {
@@ -91,10 +82,6 @@ export default function SignInPage() {
     try {
       const fullPhone = `+91${phone}`;
 
-      // Verify account state BEFORE sending an OTP. If the Firestore lookup
-      // fails for any reason, fail closed (block sending) instead of the old
-      // `.catch(() => null)` + `if (phoneDoc)` pattern, which silently let
-      // the OTP send go through whenever the lookup errored out.
       let phoneDoc;
       try {
         phoneDoc = await getDoc(doc(db, "phoneNumbers", fullPhone));
@@ -119,7 +106,17 @@ export default function SignInPage() {
       setResendTimer(30);
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to send OTP";
+      let message = "Failed to send OTP";
+      if (err instanceof Error) {
+        const code = (err as any).code;
+        if (code === "auth/invalid-phone-number") message = "Invalid phone number";
+        else if (code === "auth/too-many-requests") message = "Too many attempts. Please try again later.";
+        else if (code === "auth/quota-exceeded") message = "SMS quota exceeded. Try again later.";
+        else if (code?.includes("captcha-check-failed")) message = "Could not verify request. Please try again.";
+        else if (code?.includes("missing-phone-number")) message = "Please enter a phone number";
+        else if (code?.includes("invalid-verification")) message = "Verification failed. Try again.";
+        else message = err.message;
+      }
       setError(message);
     } finally {
       setLoading(false);
@@ -179,11 +176,37 @@ export default function SignInPage() {
       const hasPlan = snapAfter.exists() && !!data?.plan;
       router.push(!hasPlan ? "/choose-plan" : onboarded ? "/dashboard" : "/settings");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Invalid OTP";
+      let message = "Invalid OTP";
+      if (err instanceof Error) {
+        const code = (err as any).code;
+        if (code === "auth/invalid-verification-code") message = "Incorrect OTP. Please try again.";
+        else if (code === "auth/too-many-requests") message = "Too many attempts. Please try again later.";
+        else if (code?.includes("expired")) message = "OTP has expired. Please request a new one.";
+        else message = err.message;
+      }
       setError(message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function switchMode(m: "signin" | "signup") {
+    setMode(m);
+    setAuthMethod("email");
+    setOtpSent(false);
+    setOtp("");
+    setOtpDigits(["", "", "", "", "", ""]);
+    setConfirmationResult(null);
+    setError("");
+  }
+
+  function switchAuthMethod(m: "email" | "phone") {
+    setAuthMethod(m);
+    setOtpSent(false);
+    setOtp("");
+    setOtpDigits(["", "", "", "", "", ""]);
+    setConfirmationResult(null);
+    setError("");
   }
 
   async function handleEmailSubmit(e: React.FormEvent) {
@@ -236,8 +259,14 @@ export default function SignInPage() {
           message = "An account already exists with this email.";
         } else if (code === "auth/weak-password") {
           message = "Password should be at least 6 characters.";
+        } else if (code === "auth/network-request-failed") {
+          message = "Network error. Check your connection.";
+        } else if (code === "auth/requires-recent-login") {
+          message = "Please sign in again to continue.";
+        } else if (code === "auth/operation-not-allowed") {
+          message = "This sign-in method is not enabled.";
         } else {
-          message = err.message;
+          message = "Something went wrong. Please try again.";
         }
       }
       setError(message);
@@ -290,9 +319,9 @@ export default function SignInPage() {
           </div>
         </section>
 
-        <section className="flex-1 flex flex-col justify-center items-center p-4 sm:p-6 md:p-12 bg-background pt-4 sm:pt-6 md:pt-8 lg:pt-12">
-          <div className="w-full max-w-md">
-            <div className="bg-surface-container-lowest p-5 sm:p-6 md:p-8 lg:p-10 rounded-xl border border-outline-variant/30 shadow-[0_20px_40px_rgba(0,0,0,0.04)]">
+          <section className="flex-1 flex flex-col justify-center items-center p-4 sm:p-6 md:p-12 bg-background pt-0 sm:pt-0 md:pt-0 lg:pt-0">
+            <div className="w-full max-w-md">
+              <div className="bg-surface-container-lowest p-4 sm:p-5 md:p-6 rounded-xl border border-outline-variant/30 shadow-[0_20px_40px_rgba(0,0,0,0.04)]">
               {/* Mode tabs */}
               <div className="flex p-1 bg-surface-container-low rounded-lg mb-6 sm:mb-8">
                 <button
@@ -443,7 +472,7 @@ export default function SignInPage() {
                       <div className="flex items-center justify-between">
                         <button
                           type="button"
-                          onClick={() => { setOtpSent(false); setOtp(""); setOtpDigits(["", "", "", "", "", ""]); setError(""); }}
+                          onClick={() => { setOtpSent(false); setOtp(""); setOtpDigits(["", "", "", "", "", ""]); setConfirmationResult(null); setError(""); }}
                           className="font-label-sm text-xs sm:text-label-sm text-primary hover:underline cursor-pointer bg-transparent border-none"
                         >
                           Change phone number
