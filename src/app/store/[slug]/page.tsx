@@ -739,9 +739,9 @@ export default function StorefrontPage() {
 
   // ─── New fixed structure: Navbar → Products → Form → Footer ──────────
   if (isNewStructure) {
-    const navbarConfig = seller.storefront?.navbar || {};
-    const productsConfig = seller.storefront?.products || {};
-    const footerConfig = seller.storefront?.footer || {};
+    const navbarConfig: any = seller.storefront?.navbar || {};
+    const productsConfig: any = seller.storefront?.products || {};
+    const footerConfig: any = seller.storefront?.footer || {};
     const primaryColor = seller.storefront?.theme?.primaryColor || "#ff6b35";
     const pageFont = seller.storefront?.theme?.font || "";
     const pageBgType = seller.storefront?.theme?.bgType || "color";
