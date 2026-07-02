@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { collection, query, where, orderBy, getDocs, limit, getDoc, doc, addDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, limit, doc, addDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import ProductsSection, { ProductDetailModal } from "@/components/sections/ProductsSection";
 import FooterSection from "@/components/sections/FooterSection";
-
 
 import useGoogleFont from "@/hooks/useGoogleFont";
 import { useLockBody } from "@/hooks/useLockBody";
@@ -112,7 +111,7 @@ export default function StorefrontPage() {
   const [customOrderName, setCustomOrderName] = useState("");
   const [customOrderPhone, setCustomOrderPhone] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [cartInitialized, setCartInitialized] = useState(false);
+  const cartLoadedRef = useRef(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -165,24 +164,20 @@ export default function StorefrontPage() {
     }
   }, [productParam, products]);
 
-  // Cart persistence — load from localStorage when seller changes
+  // Cart persistence — load from localStorage on seller change, save on cart change
   useEffect(() => {
-    if (!seller?.id) return;
+    if (!seller?.id) { cartLoadedRef.current = false; return; }
     const key = `cart_${seller.id}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try { setCart(JSON.parse(saved)); } catch { setCart([]); }
+    if (!cartLoadedRef.current) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try { setCart(JSON.parse(saved)); } catch { /* ignore parse errors */ }
+      }
+      cartLoadedRef.current = true;
     } else {
-      setCart([]);
+      localStorage.setItem(key, JSON.stringify(cart));
     }
-    setCartInitialized(true);
-  }, [seller?.id]);
-
-  // Cart persistence — save to localStorage on every change
-  useEffect(() => {
-    if (!seller?.id || !cartInitialized) return;
-    localStorage.setItem(`cart_${seller.id}`, JSON.stringify(cart));
-  }, [cart, seller?.id, cartInitialized]);
+  }, [cart, seller?.id]);
 
   async function loadStore() {
     setLoading(true);
@@ -240,14 +235,15 @@ export default function StorefrontPage() {
 
     setSeller(sellerData);
 
-    // Start font loading + fetch products in parallel
-    const fontLoaded = loadStoreFont(sellerData.storefront?.theme?.font || "");
-
+    // Fetch products + load font in parallel (both depend on sellerId)
     const q = query(
       collection(db, "users", sellerId, "products"),
       orderBy("createdAt", "desc")
     );
-    const snap = await getDocs(q);
+    const [snap] = await Promise.all([
+      getDocs(q),
+      loadStoreFont(sellerData.storefront?.theme?.font || ""),
+    ]);
     const list: Product[] = [];
     snap.forEach((d) => {
       const p = d.data() as any;
@@ -255,73 +251,79 @@ export default function StorefrontPage() {
     });
     setProducts(list);
 
-    // Preload first 18 product thumbnails + seller photo while font loads in parallel
+    // Preload product thumbnails + seller photo in background (don't block render)
     const thumbnails = [
       sellerData.photoURL,
       ...list.slice(0, 18).map((p) => p.photoURL),
     ].filter(Boolean) as string[];
-    const imagesLoaded = preloadImages([...new Set(thumbnails)]);
+    preloadImages([...new Set(thumbnails)]);
 
-    // Wait for both font + first images before showing page
-    await Promise.allSettled([fontLoaded, imagesLoaded]);
     setLoading(false);
   }
 
-  function whatsappUrl(product: Product) {
+  const whatsappUrl = useCallback((product: Product) => {
     if (!seller?.whatsapp) return "#";
     const msg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
     return `https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(msg)}`;
-  }
+  }, [seller?.whatsapp]);
 
-  function instagramUrl(product: Product) {
+  const instagramUrl = useCallback((product: Product) => {
     if (!seller?.instagram) return "#";
     const msg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
     return `https://ig.me/m/${seller.instagram}`;
-  }
+  }, [seller?.instagram]);
 
-  function addToCart(product: Product) {
+  const addToCart = useCallback((product: Product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { product, quantity: 1 }];
     });
-  }
+  }, []);
 
-  function removeFromCart(productId: string) {
+  const removeFromCart = useCallback((productId: string) => {
     setCart((prev) => prev.filter((i) => i.product.id !== productId));
-  }
+  }, []);
 
-  function updateQuantity(productId: string, quantity: number) {
+  const updateQuantity = useCallback((productId: string, quantity: number) => {
     if (quantity <= 0) { removeFromCart(productId); return; }
     setCart((prev) => prev.map((i) => i.product.id === productId ? { ...i, quantity } : i));
-  }
+  }, [removeFromCart]);
 
-  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))];
-  const filteredProducts = activeCat ? products.filter((p) => p.category === activeCat) : products;
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const categories = useMemo(
+    () => [...new Set(products.map((p) => p.category).filter(Boolean))],
+    [products]
+  );
+  const filteredProducts = useMemo(
+    () => (activeCat ? products.filter((p) => p.category === activeCat) : products),
+    [products, activeCat]
+  );
+  const cartTotal = useMemo(
+    () => cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    [cart]
+  );
 
-  const delivery = seller?.delivery && seller.orderMethod === "razorpay" && seller.delivery.type === "flat" && seller.delivery.flatFee > 0
-    ? (() => {
-        const { flatFee, freeThreshold } = seller.delivery!;
-        if (freeThreshold > 0 && cartTotal >= freeThreshold) {
-          return { charge: 0, isFree: true, total: cartTotal };
-        }
-        if (freeThreshold > 0 && cartTotal < freeThreshold) {
-          const needed = freeThreshold - cartTotal;
-          return { charge: flatFee, isFree: false, total: cartTotal + flatFee, freeNote: `Add ₹${needed} more for free delivery` };
-        }
-        return { charge: flatFee, isFree: false, total: cartTotal + flatFee };
-      })()
-    : null;
+  const delivery = useMemo(() => {
+    if (!seller?.delivery || seller.orderMethod !== "razorpay" || seller.delivery.type !== "flat" || seller.delivery.flatFee <= 0) return null;
+    const { flatFee, freeThreshold } = seller.delivery;
+    if (freeThreshold > 0 && cartTotal >= freeThreshold) {
+      return { charge: 0, isFree: true, total: cartTotal };
+    }
+    if (freeThreshold > 0 && cartTotal < freeThreshold) {
+      const needed = freeThreshold - cartTotal;
+      return { charge: flatFee, isFree: false, total: cartTotal + flatFee, freeNote: `Add ₹${needed} more for free delivery` };
+    }
+    return { charge: flatFee, isFree: false, total: cartTotal + flatFee };
+  }, [seller?.delivery, seller?.orderMethod, cartTotal]);
 
-  function generateReference(): string {
+  const generateReference = useCallback((): string => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let ref = "SL";
     for (let i = 0; i < 6; i++) ref += chars.charAt(Math.floor(Math.random() * chars.length));
     return ref;
-  }
+  }, []);
 
-  async function saveOrder(params: {
+  const saveOrder = useCallback(async (params: {
     reference: string;
     paymentId: string;
     customerName: string;
@@ -331,7 +333,7 @@ export default function StorefrontPage() {
     customerMessage: string;
     items: { product: Product; quantity: number }[];
     total: number;
-  }) {
+  }) => {
     if (!seller) return;
     const orderData = {
       reference: `#${params.reference}`,
@@ -354,9 +356,9 @@ export default function StorefrontPage() {
       updatedAt: serverTimestamp(),
     };
     await addDoc(collection(db, "users", seller.id, "orders"), orderData);
-  }
+  }, [seller]);
 
-  async function checkoutRazorpay() {
+  const checkoutRazorpay = useCallback(async () => {
     if (!seller?.razorpayKeyId || cart.length === 0) return;
     setOrdering(true);
 
@@ -426,10 +428,10 @@ export default function StorefrontPage() {
             reference: `#${reference}`,
             total,
             items: itemLines,
-            customerName: customerName,
-            customerPhone: customerPhone,
-            customerEmail: customerEmail,
-            customerAddress: customerAddress,
+            customerName,
+            customerPhone,
+            customerEmail,
+            customerAddress,
             paymentId,
           });
           setCart([]);
@@ -445,7 +447,7 @@ export default function StorefrontPage() {
       alert("Payment failed. Please try again.");
       setOrdering(false);
     }
-  }
+  }, [seller, cart, delivery, cartTotal, customerName, customerPhone, customerEmail, customerAddress, customerMessage, generateReference, saveOrder]);
 
   function downloadReceipt(data: NonNullable<typeof orderConfirmed>) {
     import("jspdf").then(({ default: jsPDF }) => {
@@ -653,28 +655,28 @@ export default function StorefrontPage() {
     });
   }
 
-  function sendWhatsappOrder() {
+  const sendWhatsappOrder = useCallback(() => {
     if (!seller?.whatsapp || cart.length === 0) return;
     const items = cart.map((i) => `${i.product.name} x${i.quantity} = ₹${i.product.price * i.quantity}`).join("\n");
     const msg = `Hi! I'd like to order:\n\n${items}\n\nTotal: ₹${cartTotal}`;
     window.open(`https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
     setCart([]);
     setShowCart(false);
-  }
+  }, [seller?.whatsapp, cart, cartTotal]);
 
-  function sendInstagramOrder() {
+  const sendInstagramOrder = useCallback(() => {
     if (!seller?.instagram || cart.length === 0) return;
     window.open(`https://ig.me/m/${seller.instagram}`, "_blank");
     setCart([]);
     setShowCart(false);
-  }
+  }, [seller?.instagram, cart]);
 
-  function sendOrder() {
+  const sendOrder = useCallback(() => {
     if (seller?.orderMethod === "whatsapp") sendWhatsappOrder();
     else if (seller?.orderMethod === "instagram") sendInstagramOrder();
-  }
+  }, [seller?.orderMethod, sendWhatsappOrder, sendInstagramOrder]);
 
-  function sendCustomOrder() {
+  const sendCustomOrder = useCallback(() => {
     if (seller?.orderMethod === "whatsapp") {
       if (!seller?.whatsapp) return;
       let msg = `Hi! I'd like to place a custom order.`;
@@ -690,9 +692,12 @@ export default function StorefrontPage() {
     setCustomOrderName("");
     setCustomOrderPhone("");
     setCustomOrderText("");
-  }
+  }, [seller?.orderMethod, seller?.whatsapp, seller?.instagram, customOrderName, customOrderPhone, customOrderText]);
 
-  const isNewStructure = !seller?.storefront || seller.storefront.products != null;
+  const isNewStructure = useMemo(
+    () => !seller?.storefront || seller.storefront.products != null,
+    [seller?.storefront]
+  );
 
   if (loading) {
     return (

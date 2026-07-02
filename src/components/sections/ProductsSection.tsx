@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, memo } from "react";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useLockBody } from "@/hooks/useLockBody";
@@ -97,6 +97,14 @@ export default function ProductsSection({
     () => [...new Set(products.map((p) => p.category).filter(Boolean))],
     [products]
   );
+
+  const handleSelectProduct = useCallback((p: Product) => {
+    const urls = p.photoURLs?.length ? p.photoURLs : p.photoURL ? [p.photoURL] : [];
+    urls.forEach((url) => { const img = new Image(); img.src = url; });
+    setSelectedProduct(p);
+  }, []);
+
+  const handleCloseProduct = useCallback(() => setSelectedProduct(null), []);
 
   const filtered = useMemo(() => {
     let result = activeCat ? products.filter((p) => p.category === activeCat) : [...products];
@@ -322,14 +330,10 @@ export default function ProductsSection({
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                   {filtered.map((product) => (
-                    <ProductCard
+                    <ProductCardMemo
                       key={product.id}
                       product={product}
-                      onSelect={(p) => {
-                        const urls = p.photoURLs?.length ? p.photoURLs : p.photoURL ? [p.photoURL] : [];
-                        urls.forEach((url) => { const img = new Image(); img.src = url; });
-                        setSelectedProduct(p);
-                      }}
+                      onSelect={handleSelectProduct}
                     />
                   ))}
                 </div>
@@ -341,7 +345,7 @@ export default function ProductsSection({
       {selectedProduct && (
         <ProductDetailModal
           product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
+          onClose={handleCloseProduct}
           onAddToCart={onAddToCart}
           whatsapp={whatsapp}
           instagram={instagram}
@@ -353,7 +357,7 @@ export default function ProductsSection({
   );
 }
 
-export function ProductDetailModal({
+function ProductDetailModalRaw({
   product,
   onClose,
   onAddToCart,
@@ -399,7 +403,7 @@ export function ProductDetailModal({
           <span className="material-symbols-outlined" style={{ fontSize: 22 }}>close</span>
         </button>
 
-        <div className="h-72 sm:h-96 md:aspect-auto md:w-1/2 md:h-[32rem] shrink-0 bg-surface-container-low relative overflow-hidden">
+        <div className="h-72 sm:h-96 md:h-auto md:w-1/2 md:self-stretch md:min-h-[32rem] shrink-0 bg-surface-container-low relative overflow-hidden">
           {allPhotos.length > 0 ? (
             <>
               <img src={allPhotos[photoIndex]} alt={product.name} className="w-full h-full object-cover" />
@@ -537,6 +541,8 @@ export function ProductDetailModal({
   );
 }
 
+export const ProductDetailModal = memo(ProductDetailModalRaw);
+
 export function ProductCard({
   product,
   onSelect,
@@ -610,3 +616,5 @@ export function ProductCard({
     </div>
   );
 }
+
+const ProductCardMemo = memo(ProductCard);
