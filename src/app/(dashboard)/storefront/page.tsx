@@ -780,6 +780,7 @@ export default function StorefrontPage() {
                   <ProductsSection
                     sellerId={user?.uid || ""}
                     whatsapp=""
+                    instagram=""
                     orderMethod="whatsapp"
                     title={productsTitle}
                     subtitle={productsSubtitle}
