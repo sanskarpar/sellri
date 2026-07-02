@@ -779,6 +779,7 @@ export default function StorefrontPage() {
                 <div style={{ "--color-primary": primaryColor } as React.CSSProperties}>
                   <ProductsSection
                     sellerId={user?.uid || ""}
+                    //fixed
                     whatsapp=""
                     instagram=""
                     orderMethod="whatsapp"
