@@ -320,13 +320,13 @@ export default function ChoosePlanPage() {
 
               <button
                 onClick={handleSubscribe}
-                disabled={true || !selectedPlan || busy}
+                disabled={!selectedPlan || busy}
                 className="w-full py-3 rounded-xl font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-40 cursor-pointer"
                 style={{ backgroundColor: "#f68f1d" }}
               >
                 {busy ? "Processing..." : selectedPlan ? `Pay ₹${PLANS.find(p => p.key === selectedPlan)?.price}` : "Select a plan above"}
               </button>
-              <p className="text-center text-xs text-on-surface-variant mt-2">Payments disabled — start your free trial above.</p>
+
 
               {!trialAvailable && !isActiveTrial && !isRenewal && (
                 <p className="text-center text-xs text-on-surface-variant mt-3">
