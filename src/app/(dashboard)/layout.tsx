@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Sidebar from "@/components/Sidebar";
+
+export const metadata: Metadata = {
+  title: "Dashboard — Sellri",
+  description: "Manage your products, orders, and storefront settings from your Sellri dashboard.",
+  robots: { index: false, follow: false },
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (

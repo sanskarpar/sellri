@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Refund Policy — Sellri",
+  description:
+    "Sellri's refund policy for subscription fees. Learn how to request a refund and cancellation terms.",
+  openGraph: {
+    title: "Refund Policy — Sellri",
+    url: "https://sellri.in/policies/refund",
+  },
+};
 
 export default function RefundPage() {
   return (

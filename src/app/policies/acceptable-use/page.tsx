@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Acceptable Use Policy — Sellri",
+  description:
+    "Sellri's acceptable use policy defines what you may and may not do on the platform.",
+  openGraph: {
+    title: "Acceptable Use Policy — Sellri",
+    url: "https://sellri.in/policies/acceptable-use",
+  },
+};
 
 export default function AcceptableUsePage() {
   return (

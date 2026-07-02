@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — Sellri",
+  description:
+    "Sellri's privacy policy explains how we collect, use, store, and protect your information. Last updated July 2, 2026.",
+  openGraph: {
+    title: "Privacy Policy — Sellri",
+    url: "https://sellri.in/policies/privacy",
+  },
+};
 
 export default function PrivacyPage() {
   return (

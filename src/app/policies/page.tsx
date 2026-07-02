@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Platform Policies — Sellri",
+  description:
+    "Sellri's platform policies including Terms & Conditions, Privacy Policy, Refund Policy, and Acceptable Use Policy.",
+  openGraph: {
+    title: "Platform Policies — Sellri",
+    url: "https://sellri.in/policies",
+  },
+};
 
 export default function PoliciesIndex() {
   return (

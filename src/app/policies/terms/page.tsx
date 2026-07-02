@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Terms & Conditions — Sellri",
+  description:
+    "Terms and conditions governing your access to and use of the Sellri platform. Last updated July 2, 2026.",
+  openGraph: {
+    title: "Terms & Conditions — Sellri",
+    url: "https://sellri.in/policies/terms",
+  },
+};
 
 export default function TermsPage() {
   return (
