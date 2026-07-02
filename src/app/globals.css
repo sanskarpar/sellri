@@ -181,6 +181,10 @@ input[type="text"], input[type="tel"], input[type="email"], input[type="number"]
   background-color: #25d366;
 }
 
+.instagram-gradient {
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
+}
+
 .input-field {
   padding: 0.75rem 1rem;
   border-radius: 0.75rem;

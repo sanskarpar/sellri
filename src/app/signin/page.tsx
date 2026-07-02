@@ -564,9 +564,9 @@ export default function SignInPage() {
 
               <p className="mt-5 sm:mt-6 md:mt-8 text-center font-label-sm text-[10px] sm:text-label-sm text-on-surface-variant">
                 By continuing, you agree to Sellri&apos;s{" "}
-                <Link href="#" className="text-primary hover:underline">Terms of Service</Link>{" "}
+                <Link href="/policies/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
                 and{" "}
-                <Link href="#" className="text-primary hover:underline">Privacy Policy</Link>.
+                <Link href="/policies/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
               </p>
             </div>
           </div>

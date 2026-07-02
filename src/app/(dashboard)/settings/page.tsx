@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
@@ -62,10 +62,10 @@ export default function SettingsPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
 
-  const [orderMethod, setOrderMethod] = useState<"whatsapp" | "razorpay">("whatsapp");
+  const [orderMethod, setOrderMethod] = useState<"whatsapp" | "instagram" | "razorpay">("whatsapp");
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
-  const [allowCustomOrders, setAllowCustomOrders] = useState(false);
+  const [instagram, setInstagram] = useState("");
   const [makeToOrder, setMakeToOrder] = useState(false);
 
   const [deliveryType, setDeliveryType] = useState<"none" | "flat">("none");
@@ -92,6 +92,7 @@ export default function SettingsPage() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const initialLoad = useRef(true);
 
   const hasEmail = !!(user?.email);
   const hasPhone = !!(userDoc?.phone);
@@ -116,7 +117,7 @@ export default function SettingsPage() {
         setOrderMethod(data.orderMethod || "whatsapp");
         setRazorpayKeyId(data.razorpayKeyId || "");
         setRazorpayKeySecret(data.razorpayKeySecret || "");
-        setAllowCustomOrders(data.allowCustomOrders ?? false);
+        setInstagram(data.instagram || "");
         setMakeToOrder(data.makeToOrder ?? false);
         setDeliveryType(data.delivery?.type === "flat" ? "flat" : "none");
         setDeliveryFlatFee(data.delivery?.flatFee?.toString() || "");
@@ -163,8 +164,9 @@ export default function SettingsPage() {
     fetchDoc();
   }, [router]);
 
-  // Auto-generate slug from store name
+  // Auto-generate slug from store name (skip on initial data load)
   useEffect(() => {
+    if (initialLoad.current) { initialLoad.current = false; return; }
     if (!slugManuallyEdited && storeName) {
       setStoreSlug(generateSlug(storeName));
     }
@@ -192,7 +194,6 @@ export default function SettingsPage() {
         name: storeName,
         slug,
         bio,
-        whatsapp,
         onboarded: true,
         updatedAt: serverTimestamp(),
       };
@@ -218,7 +219,6 @@ export default function SettingsPage() {
     setError(""); setMessage(""); setSaving(true);
     try {
       await updateDoc(doc(db, "users", user.uid), {
-        allowCustomOrders,
         makeToOrder,
         updatedAt: serverTimestamp(),
       });
@@ -235,6 +235,16 @@ export default function SettingsPage() {
     if (!user) return;
     setError(""); setMessage(""); setSaving(true);
     try {
+      if (orderMethod === "whatsapp" && !whatsapp.trim()) {
+        setError("Please enter your WhatsApp number to receive orders.");
+        setSaving(false);
+        return;
+      }
+      if (orderMethod === "instagram" && !instagram.trim()) {
+        setError("Please enter your Instagram username to receive orders.");
+        setSaving(false);
+        return;
+      }
       const delivery = orderMethod === "razorpay" ? {
         type: deliveryType,
         flatFee: deliveryType === "flat" ? Number(deliveryFlatFee) || 0 : 0,
@@ -242,6 +252,8 @@ export default function SettingsPage() {
       } : { type: "none", flatFee: 0, freeThreshold: 0 };
       await updateDoc(doc(db, "users", user.uid), {
         orderMethod,
+        whatsapp: orderMethod === "whatsapp" ? whatsapp : "",
+        instagram: orderMethod === "instagram" ? instagram : "",
         razorpayKeyId: orderMethod === "razorpay" ? razorpayKeyId : "",
         razorpayKeySecret: orderMethod === "razorpay" ? razorpayKeySecret : "",
         delivery,
@@ -285,12 +297,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function handleSkip() {
-    if (!user) return;
-    await updateDoc(doc(db, "users", user.uid), { onboarded: true, updatedAt: serverTimestamp() });
-    router.push("/dashboard");
   }
 
   if (loading) {
@@ -468,19 +474,6 @@ export default function SettingsPage() {
                 <p className="text-xs text-on-surface-variant mt-1 text-right">{bio.length}/500</p>
               </div>
 
-              <div>
-                <label className="block font-label-md text-sm text-on-surface mb-1">WhatsApp Number</label>
-                <div className="flex">
-                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-outline bg-surface-container-low font-label-md text-on-surface-variant">+91</span>
-                  <input
-                    type="tel"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    className="w-full px-4 py-3 rounded-r-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
-                    placeholder="9876543210"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -490,13 +483,10 @@ export default function SettingsPage() {
                 <button
                   onClick={handleSaveStore}
                   disabled={saving}
-                  className="flex-1 py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
+                  className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
                   style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
                 >
                   {saving ? "Saving..." : "Save & Continue"}
-                </button>
-                <button onClick={handleSkip} className="py-3 px-6 rounded-xl font-label-md text-on-surface-variant hover:text-on-surface border border-outline transition-all cursor-pointer">
-                  Skip
                 </button>
               </>
             ) : (
@@ -524,23 +514,6 @@ export default function SettingsPage() {
             <h3 className="font-label-md font-semibold text-on-surface">Ordering</h3>
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-label-md text-sm text-on-surface">Allow custom orders</p>
-                <p className="text-xs text-on-surface-variant">Customers can send custom order requests without selecting a product.</p>
-              </div>
-              <label className="flex items-center cursor-pointer">
-                <div
-                  onClick={() => setAllowCustomOrders(!allowCustomOrders)}
-                  className={`w-11 h-6 rounded-full relative transition-colors ${allowCustomOrders ? "bg-green-500" : "bg-gray-300"}`}
-                >
-                  <div
-                    className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                    style={{ transform: allowCustomOrders ? "translateX(20px)" : "translateX(0)" }}
-                  />
-                </div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="font-label-md text-sm text-on-surface">Make to order</p>
                 <p className="text-xs text-on-surface-variant">Disable stock tracking &mdash; treat all products as in stock (ideal for made-to-order businesses).</p>
               </div>
@@ -565,11 +538,6 @@ export default function SettingsPage() {
           >
             {saving ? "Saving..." : isFirstTime ? "Save & Continue" : "Save Changes"}
           </button>
-          {isFirstTime && (
-            <button onClick={handleSkip} className="mt-3 w-full py-3 rounded-xl font-label-md text-on-surface-variant hover:text-on-surface border border-outline transition-all cursor-pointer">
-              Skip
-            </button>
-          )}
         </div>
       ) : null}
 
@@ -581,7 +549,7 @@ export default function SettingsPage() {
 
           <h3 className="font-label-md font-semibold text-on-surface mb-4">Payment Method</h3>
           <div className="space-y-4 mb-6">
-            {(["whatsapp", "razorpay"] as const).map((method) => (
+            {(["whatsapp", "instagram", "razorpay"] as const).map((method) => (
               <label key={method} className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
                 orderMethod === method ? "border-primary bg-primary-container/5" : "border-outline hover:border-primary"
               }`}>
@@ -593,17 +561,56 @@ export default function SettingsPage() {
                 />
                 <div>
                   <p className="font-label-md font-bold text-on-surface">
-                    {method === "whatsapp" ? "WhatsApp Orders" : "In-App Payments (Razorpay)"}
+                    {method === "whatsapp" ? "WhatsApp Orders" : method === "instagram" ? "Instagram Orders" : "In-App Payments (Razorpay)"}
                   </p>
                   <p className="text-sm text-on-surface-variant">
                     {method === "whatsapp"
                       ? "Customers send orders directly to your WhatsApp. Simple and personal."
+                      : method === "instagram"
+                      ? "Customers DM their orders to your Instagram. Great for social selling."
                       : "Customers pay directly on your store page via UPI, cards & more."}
                   </p>
                 </div>
               </label>
             ))}
           </div>
+
+          {orderMethod === "whatsapp" && (
+            <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
+              <div>
+                <label className="block font-label-md text-sm text-on-surface mb-1">WhatsApp Number <span className="text-red-500">*</span></label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-outline bg-surface-container-low font-label-md text-on-surface-variant">+91</span>
+                  <input
+                    type="tel"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    className="w-full px-4 py-3 rounded-r-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                    placeholder="9876543210"
+                  />
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Required. Customers will send orders here.</p>
+              </div>
+            </div>
+          )}
+
+          {orderMethod === "instagram" && (
+            <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
+              <div>
+                <label className="block font-label-md text-sm text-on-surface mb-1">Instagram Username <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value.replace(/[^a-zA-Z0-9._]/g, "").slice(0, 30))}
+                  className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                  placeholder="yourstore"
+                />
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Required. Customers will DM you at <strong>instagram.com/{instagram || "yourstore"}</strong>
+                </p>
+              </div>
+            </div>
+          )}
 
           {orderMethod === "razorpay" && (
             <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
@@ -769,11 +776,6 @@ export default function SettingsPage() {
           >
             {saving ? "Saving..." : isFirstTime ? "Save & Continue" : "Save Changes"}
           </button>
-          {isFirstTime && (
-            <button onClick={handleSkip} className="mt-3 w-full py-3 rounded-xl font-label-md text-on-surface-variant hover:text-on-surface border border-outline transition-all cursor-pointer">
-              Skip
-            </button>
-          )}
         </div>
       ) : null}
 

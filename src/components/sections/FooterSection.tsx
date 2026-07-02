@@ -159,11 +159,10 @@ export default function FooterSection({
               ))}
             </div>
           )}
-          {policies.length > 0 && (
-            <div
-              className="px-5 py-2.5 rounded-full border inline-flex items-center gap-2"
-              style={{ fontFamily: "'Montserrat', sans-serif", borderColor: "#FF9933", backgroundColor: "rgba(255,153,51,0.08)" }}
-            >
+          <div
+            className="px-5 py-2.5 rounded-full border inline-flex items-center gap-2"
+            style={{ fontFamily: "'Montserrat', sans-serif", borderColor: "#FF9933", backgroundColor: "rgba(255,153,51,0.08)" }}
+          >
               <span className="text-xs" style={{ color: "#FF9933" }}>&#10022;</span>
               <span className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>
                 Made with{" "}
@@ -178,7 +177,6 @@ export default function FooterSection({
                 </a>
               </span>
             </div>
-          )}
 
           {copyright && (
             <p className={`text-sm transition-colors duration-300 ${hasBg ? "text-white/40 hover:text-white/60" : "text-black/50 hover:text-black/70"}`}>

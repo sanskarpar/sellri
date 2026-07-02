@@ -38,7 +38,8 @@ type Seller = {
   bio: string;
   photoURL: string;
   whatsapp: string;
-  orderMethod: "whatsapp" | "razorpay";
+  instagram: string;
+  orderMethod: "whatsapp" | "instagram" | "razorpay";
   razorpayKeyId: string;
   allowCustomOrders: boolean;
   delivery?: DeliveryConfig;
@@ -212,6 +213,7 @@ export default function StorefrontPage() {
       bio: data.bio || "",
       photoURL: data.photoURL || "",
       whatsapp: data.whatsapp || "",
+      instagram: data.instagram || "",
       orderMethod: data.orderMethod || "whatsapp",
       razorpayKeyId: data.razorpayKeyId || "",
       allowCustomOrders: data.allowCustomOrders ?? false,
@@ -253,6 +255,12 @@ export default function StorefrontPage() {
     if (!seller?.whatsapp) return "#";
     const msg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
     return `https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(msg)}`;
+  }
+
+  function instagramUrl(product: Product) {
+    if (!seller?.instagram) return "#";
+    const msg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
+    return `https://ig.me/m/${seller.instagram}`;
   }
 
   function addToCart(product: Product) {
@@ -638,20 +646,37 @@ export default function StorefrontPage() {
     setShowCart(false);
   }
 
+  function sendInstagramOrder() {
+    if (!seller?.instagram || cart.length === 0) return;
+    window.open(`https://ig.me/m/${seller.instagram}`, "_blank");
+    setCart([]);
+    setShowCart(false);
+  }
+
+  function sendOrder() {
+    if (seller?.orderMethod === "whatsapp") sendWhatsappOrder();
+    else if (seller?.orderMethod === "instagram") sendInstagramOrder();
+  }
+
   function sendCustomOrder() {
-    if (!seller?.whatsapp) return;
-    let msg = `Hi! I'd like to place a custom order.`;
-    if (customOrderName) msg += `\n\nName: ${customOrderName}`;
-    if (customOrderPhone) msg += `\nPhone: ${customOrderPhone}`;
-    if (customOrderText) msg += `\n\nDetails: ${customOrderText}`;
-    window.open(`https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+    if (seller?.orderMethod === "whatsapp") {
+      if (!seller?.whatsapp) return;
+      let msg = `Hi! I'd like to place a custom order.`;
+      if (customOrderName) msg += `\n\nName: ${customOrderName}`;
+      if (customOrderPhone) msg += `\nPhone: ${customOrderPhone}`;
+      if (customOrderText) msg += `\n\nDetails: ${customOrderText}`;
+      window.open(`https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+    } else if (seller?.orderMethod === "instagram") {
+      if (!seller?.instagram) return;
+      window.open(`https://ig.me/m/${seller.instagram}`, "_blank");
+    }
     setShowCustomOrder(false);
     setCustomOrderName("");
     setCustomOrderPhone("");
     setCustomOrderText("");
   }
 
-  const isNewStructure = seller?.storefront?.products != null;
+  const isNewStructure = !seller?.storefront || seller.storefront.products != null;
 
   if (loading) {
     return (
@@ -714,9 +739,9 @@ export default function StorefrontPage() {
 
   // ─── New fixed structure: Navbar → Products → Form → Footer ──────────
   if (isNewStructure) {
-    const navbarConfig = seller.storefront!.navbar;
-    const productsConfig = seller.storefront!.products || {};
-    const footerConfig = seller.storefront!.footer || {};
+    const navbarConfig = seller.storefront?.navbar || {};
+    const productsConfig = seller.storefront?.products || {};
+    const footerConfig = seller.storefront?.footer || {};
     const primaryColor = seller.storefront?.theme?.primaryColor || "#ff6b35";
     const pageFont = seller.storefront?.theme?.font || "";
     const pageBgType = seller.storefront?.theme?.bgType || "color";
@@ -742,7 +767,7 @@ export default function StorefrontPage() {
             bgImage: navbarConfig.bgImage || "",
             logoURL: navbarConfig.logoURL || "",
             logoHeight: navbarConfig.logoHeight ?? 36,
-            logoText: navbarConfig.logoText || "",
+            logoText: navbarConfig.logoText || seller.name || "",
             logoFont: navbarConfig.logoFont || "Arial",
             logoTextColor: navbarConfig.logoTextColor || "#ffffff",
             trackUrl: "/track",
@@ -764,6 +789,7 @@ export default function StorefrontPage() {
             sellerId={seller.id}
             products={products}
             whatsapp={seller.whatsapp}
+            instagram={seller.instagram}
             orderMethod={seller.orderMethod}
             title={productsConfig.title || ""}
             subtitle={productsConfig.subtitle || ""}
@@ -775,7 +801,7 @@ export default function StorefrontPage() {
           />
           </div>
           <FooterSection
-            storeName={footerConfig.storeName || "My Store"}
+            storeName={footerConfig.storeName || seller.name || "My Store"}
             logo={footerConfig.logo || ""}
             instagram={footerConfig.instagram || ""}
             whatsapp={footerConfig.whatsapp || ""}
@@ -813,7 +839,7 @@ export default function StorefrontPage() {
           <button
             onClick={() => setShowCustomOrder(true)}
             className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            style={{ backgroundColor: "#25D366" }}
+            style={{ backgroundColor: seller.orderMethod === "instagram" ? "#8134af" : "#25D366" }}
             title="Custom Order"
           >
             <span className="material-symbols-outlined">edit_note</span>
@@ -1060,9 +1086,9 @@ export default function StorefrontPage() {
                 <button
                   onClick={sendCustomOrder}
                   className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
-                  style={{ backgroundColor: "#25D366" }}
+                  style={{ backgroundColor: seller?.orderMethod === "instagram" ? "#8134af" : "#25D366" }}
                 >
-                  Send via WhatsApp
+                  {seller?.orderMethod === "instagram" ? "Send via Instagram" : "Send via WhatsApp"}
                 </button>
               </div>
             </div>
@@ -1113,7 +1139,20 @@ export default function StorefrontPage() {
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
                     Download Receipt
                   </button>
-                  {seller?.whatsapp && (
+                  {seller?.orderMethod === "instagram" ? (
+                    seller?.instagram && (
+                      <a
+                        href={`https://ig.me/m/${seller.instagram}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2 justify-center"
+                        style={{ background: "linear-gradient(135deg, #f58529, #dd2a7b, #8134af)" }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chat</span>
+                        Contact Seller on Instagram
+                      </a>
+                    )
+                  ) : seller?.whatsapp && (
                     <a
                       href={`https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(`Hi! I've placed an order (${orderConfirmed.reference}) of ₹${orderConfirmed.total}.`)}`}
                       target="_blank"
@@ -1161,7 +1200,7 @@ export default function StorefrontPage() {
           bgImage: seller.storefront?.navbar?.bgImage || "",
           logoURL: seller.storefront?.navbar?.logoURL || "",
           logoHeight: seller.storefront?.navbar?.logoHeight ?? 36,
-          logoText: seller.storefront?.navbar?.logoText || "",
+          logoText: seller.storefront?.navbar?.logoText || seller.name || "",
           logoFont: seller.storefront?.navbar?.logoFont || "Arial",
           logoTextColor: seller.storefront?.navbar?.logoTextColor || "#ffffff",
           trackUrl: "/track",
@@ -1173,16 +1212,6 @@ export default function StorefrontPage() {
         }}
       />
       <main className="min-h-screen bg-surface" style={{ "--color-primary": primaryColor } as React.CSSProperties}>
-        {/* Seller header */}
-        <div className="bg-gradient-to-br from-primary-fixed/20 via-surface to-surface">
-          <div className="max-w-4xl mx-auto px-4 py-10 md:py-16 text-center">
-            {seller.photoURL && (
-              <img src={seller.photoURL} alt={seller.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md" />
-            )}
-            <h1 className="font-display-lg text-2xl md:text-4xl text-on-surface mb-2">{seller.name}</h1>
-            {seller.bio && <p className="text-on-surface-variant max-w-md mx-auto">{seller.bio}</p>}
-          </div>
-        </div>
 
         <div className="max-w-4xl mx-auto px-4 pb-16">
           {/* Category filter */}
@@ -1259,6 +1288,14 @@ export default function StorefrontPage() {
         </div>
       </main>
 
+      <FooterSection
+        storeName={seller.name || "My Store"}
+        termsUrl={slug ? `/store/${slug}/policy/terms` : ""}
+        privacyUrl={slug ? `/store/${slug}/policy/privacy` : ""}
+        refundsUrl={slug ? `/store/${slug}/policy/refunds` : ""}
+        trackUrl="/track"
+      />
+
       {/* Cart FAB (Razorpay mode) */}
       {seller.orderMethod === "razorpay" && cart.length > 0 && (
         <button
@@ -1278,7 +1315,7 @@ export default function StorefrontPage() {
         <button
           onClick={() => setShowCustomOrder(true)}
           className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-          style={{ backgroundColor: "#25D366" }}
+          style={{ backgroundColor: seller.orderMethod === "instagram" ? "#8134af" : "#25D366" }}
           title="Custom Order"
         >
           <span className="material-symbols-outlined">edit_note</span>
@@ -1313,9 +1350,9 @@ export default function StorefrontPage() {
               <button
                 onClick={sendCustomOrder}
                 className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
-                style={{ backgroundColor: "#25D366" }}
+                style={{ backgroundColor: seller?.orderMethod === "instagram" ? "#8134af" : "#25D366" }}
               >
-                Send via WhatsApp
+                {seller?.orderMethod === "instagram" ? "Send via Instagram" : "Send via WhatsApp"}
               </button>
             </div>
           </div>
@@ -1329,6 +1366,7 @@ export default function StorefrontPage() {
           onClose={() => setSelectedProduct(null)}
           onAddToCart={addToCart}
           whatsapp={seller?.whatsapp || ""}
+          instagram={seller?.instagram || ""}
           orderMethod={seller?.orderMethod || "whatsapp"}
         />
       )}
@@ -1377,7 +1415,20 @@ export default function StorefrontPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
                   Download Receipt
                 </button>
-                {seller?.whatsapp && (
+                {seller?.orderMethod === "instagram" ? (
+                  seller?.instagram && (
+                    <a
+                      href={`https://ig.me/m/${seller.instagram}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2 justify-center"
+                      style={{ background: "linear-gradient(135deg, #f58529, #dd2a7b, #8134af)" }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chat</span>
+                      Contact Seller on Instagram
+                    </a>
+                  )
+                ) : seller?.whatsapp && (
                   <a
                     href={`https://wa.me/91${seller.whatsapp}?text=${encodeURIComponent(`Hi! I've placed an order (${orderConfirmed.reference}) of ₹${orderConfirmed.total}.`)}`}
                     target="_blank"

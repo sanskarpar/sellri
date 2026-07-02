@@ -37,16 +37,28 @@ export default function Footer() {
               Sign In
             </Link>
             <Link
-              href="#"
+              href="/policies/privacy"
               className="text-xs sm:text-sm text-white/75 hover:text-white transition-colors duration-200"
             >
               Privacy Policy
             </Link>
             <Link
-              href="#"
+              href="/policies/terms"
               className="text-xs sm:text-sm text-white/75 hover:text-white transition-colors duration-200"
             >
               Terms of Service
+            </Link>
+            <Link
+              href="/policies/refund"
+              className="text-xs sm:text-sm text-white/75 hover:text-white transition-colors duration-200"
+            >
+              Refund Policy
+            </Link>
+            <Link
+              href="/policies/acceptable-use"
+              className="text-xs sm:text-sm text-white/75 hover:text-white transition-colors duration-200"
+            >
+              Acceptable Use
             </Link>
           </div>
         </div>

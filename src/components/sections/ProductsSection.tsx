@@ -20,7 +20,8 @@ type ProductsSectionProps = {
   sellerId: string;
   products?: Product[];
   whatsapp: string;
-  orderMethod: "whatsapp" | "razorpay";
+  instagram: string;
+  orderMethod: "whatsapp" | "instagram" | "razorpay";
   title: string;
   subtitle?: string;
   showCategoryFilter?: boolean;
@@ -36,6 +37,7 @@ export default function ProductsSection({
   sellerId,
   products: initialProducts,
   whatsapp,
+  instagram,
   orderMethod,
   title,
   subtitle,
@@ -330,6 +332,7 @@ export default function ProductsSection({
           onClose={() => setSelectedProduct(null)}
           onAddToCart={onAddToCart}
           whatsapp={whatsapp}
+          instagram={instagram}
           orderMethod={orderMethod}
         />
       )}
@@ -342,13 +345,15 @@ export function ProductDetailModal({
   onClose,
   onAddToCart,
   whatsapp,
+  instagram,
   orderMethod,
 }: {
   product: Product;
   onClose: () => void;
   onAddToCart?: (product: Product) => void;
   whatsapp: string;
-  orderMethod: "whatsapp" | "razorpay";
+  instagram: string;
+  orderMethod: "whatsapp" | "instagram" | "razorpay";
 }) {
   const allPhotos = product.photoURLs?.length ? product.photoURLs : product.photoURL ? [product.photoURL] : [];
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -356,15 +361,16 @@ export function ProductDetailModal({
   const whatsappMsg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
   const whatsappUrl = `https://wa.me/91${whatsapp}?text=${encodeURIComponent(whatsappMsg)}`;
   const askWhatsappUrl = `https://wa.me/91${whatsapp}?text=${encodeURIComponent(`Hi, I have a question about ${product.name} (₹${product.price})`)}`;
+  const instagramUrl = `https://ig.me/m/${instagram}`;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 animate-fadeIn"
       style={{ background: "rgba(0,0,0,0.7)" }}
       onClick={onClose}
     >
       <div
-        className="bg-white sm:rounded-3xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl overflow-y-auto sm:overflow-hidden shadow-2xl relative md:flex animate-scaleIn"
+        className="bg-white sm:rounded-3xl w-full h-auto sm:h-auto max-h-[85vh] sm:max-h-[90vh] sm:max-w-5xl overflow-y-auto sm:overflow-hidden shadow-2xl relative md:flex animate-scaleIn"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -453,6 +459,17 @@ export function ProductDetailModal({
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chat</span>
                 Order on WhatsApp
+              </a>
+            ) : orderMethod === "instagram" ? (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-3 py-3.5 sm:py-4 md:py-5 rounded-2xl font-label-md text-base sm:text-lg text-white hover:brightness-110 active:scale-[0.97] transition-all shadow-lg hover:shadow-xl"
+                style={{ background: "linear-gradient(135deg, #f58529, #dd2a7b, #8134af)" }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chat</span>
+                Order on Instagram
               </a>
             ) : (
               <>

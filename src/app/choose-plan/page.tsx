@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, addDoc, collection, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const PLANS = [
@@ -54,8 +54,11 @@ export default function ChoosePlanPage() {
         return;
       }
       // Allow trial users to subscribe — subscription extends after trial ends
-      setTrialAvailable(false);
-      if (plan === "trial" && !trialExpired) setIsActiveTrial(true);
+      if (!plan) {
+        setTrialAvailable(true);
+      } else if (plan === "trial" && !trialExpired) {
+        setIsActiveTrial(true);
+      }
       setChecking(false);
     }).catch(() => setChecking(false));
 
@@ -69,6 +72,17 @@ export default function ChoosePlanPage() {
     }
   }, [router]);
 
+  const SAMPLE_PRODUCTS = [
+    { name: "Handcrafted Bracelet", price: 299, category: "Accessories", description: "Beautifully handcrafted bead bracelet, perfect for any occasion." },
+    { name: "Organic Green Tea", price: 199, category: "Beverages", description: "Premium organic green tea leaves sourced from Darjeeling." },
+    { name: "Scented Soy Candle", price: 349, category: "Home & Living", description: "Long-lasting soy wax candle with natural essential oils." },
+    { name: "Cotton Tote Bag", price: 249, category: "Bags", description: "Eco-friendly cotton tote bag for everyday use." },
+    { name: "Herbal Face Serum", price: 399, category: "Skincare", description: "Nourishing herbal face serum with vitamin E and aloe vera.", photoURL: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400&h=400&fit=crop" },
+    { name: "Handwoven Scarf", price: 499, category: "Fashion", description: "Soft handwoven scarf made from premium pashmina blend." },
+    { name: "Ceramic Mug Set", price: 299, category: "Kitchen", description: "Set of 2 handcrafted ceramic mugs with minimalist design." },
+    { name: "Bamboo Plant Stand", price: 449, category: "Home & Living", description: "Elegant bamboo plant stand for your indoor garden." },
+  ];
+
   async function handleFreeTrial() {
     if (!uid) return;
     setBusy(true);
@@ -79,6 +93,18 @@ export default function ChoosePlanPage() {
         trialEndsAt: Timestamp.fromDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
         updatedAt: Timestamp.now(),
       }, { merge: true });
+
+      const sample = SAMPLE_PRODUCTS[Math.floor(Math.random() * SAMPLE_PRODUCTS.length)];
+      await addDoc(collection(db, "users", uid, "products"), {
+        name: sample.name,
+        price: sample.price,
+        category: sample.category,
+        description: sample.description,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        inStock: true,
+      });
+
       router.push("/settings");
     } catch {
       alert("Something went wrong. Please try again.");

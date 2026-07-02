@@ -38,8 +38,12 @@ export default function OrdersPage() {
 
   const [formName, setFormName] = useState("");
   const [formPhone, setFormPhone] = useState("");
-  const [formItems, setFormItems] = useState("");
-  const [formTotal, setFormTotal] = useState("");
+  const [formProducts, setFormProducts] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [formSelected, setFormSelected] = useState<Record<string, number>>({});
+  const [formCustomDesc, setFormCustomDesc] = useState("");
+  const [formCustomPrice, setFormCustomPrice] = useState("");
+  const [formLoadingProducts, setFormLoadingProducts] = useState(false);
+  const [formProductSearch, setFormProductSearch] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("sellri_user");
@@ -60,18 +64,40 @@ export default function OrdersPage() {
   }
 
   function resetForm() {
-    setFormName(""); setFormPhone(""); setFormItems(""); setFormTotal("");
+    setFormName(""); setFormPhone(""); setFormSelected({}); setFormCustomDesc(""); setFormCustomPrice(""); setFormProducts([]); setFormProductSearch("");
   }
+
+  async function openAddForm() {
+    resetForm();
+    setShowForm(true);
+    if (!user) return;
+    setFormLoadingProducts(true);
+    try {
+      const q = query(collection(db, "users", user.uid, "products"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      setFormProducts(snap.docs.map((d) => ({ id: d.id, name: d.data().name || "", price: d.data().price || 0 })));
+    } finally {
+      setFormLoadingProducts(false);
+    }
+  }
+
+  const formTotal = Object.entries(formSelected).reduce((sum, [id, qty]) => sum + (formProducts.find((p) => p.id === id)?.price ?? 0) * qty, 0) + (parseFloat(formCustomPrice) || 0);
 
   async function handleAddOrder() {
     if (!user || !formName || !formPhone) return;
     setSaving(true);
     try {
+      const itemsParts: string[] = [];
+      for (const [id, qty] of Object.entries(formSelected)) {
+        const p = formProducts.find((p) => p.id === id);
+        if (p && qty > 0) itemsParts.push(`${p.name} x${qty} (₹${p.price * qty})`);
+      }
+      if (formCustomDesc.trim()) itemsParts.push(`${formCustomDesc.trim()}${formCustomPrice ? ` (₹${formCustomPrice})` : ""}`);
       await addDoc(collection(db, "users", user.uid, "orders"), {
         customerName: formName.trim(),
         customerPhone: formPhone.trim(),
-        items: formItems.trim(),
-        total: parseFloat(formTotal) || 0,
+        items: itemsParts.join(", "),
+        total: formTotal,
         status: "Received",
         source: "manual",
         createdAt: serverTimestamp(),
@@ -137,7 +163,7 @@ export default function OrdersPage() {
           <div className="flex items-center justify-between mb-6">
             <p className="text-on-surface-variant">{orders.length} order{orders.length !== 1 ? "s" : ""}</p>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={openAddForm}
               className="flex items-center gap-2 py-3 px-6 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
               style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
             >
@@ -152,7 +178,7 @@ export default function OrdersPage() {
               <h2 className="font-headline-md text-xl text-on-surface mb-2">No orders yet</h2>
               <p className="text-on-surface-variant mb-6">Add your first order to start tracking.</p>
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openAddForm}
                 className="py-3 px-8 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
                 style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
               >
@@ -283,8 +309,9 @@ export default function OrdersPage() {
               <p className="text-on-surface-variant">Customers will appear once you add orders.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block bg-white rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-outline-variant/20">
@@ -314,7 +341,35 @@ export default function OrdersPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-3">
+                {customers.map((c) => (
+                  <div key={c.phone} className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-label-md font-bold text-on-surface">{c.name}</p>
+                        <p className="text-sm text-on-surface-variant">{c.phone}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                        c.lastOrder === "Delivered" ? "bg-green-100 text-green-600" :
+                        c.lastOrder === "Received" ? "bg-blue-100 text-blue-600" :
+                        "bg-orange-100 text-orange-600"
+                      }`}>{c.lastOrder}</span>
+                    </div>
+                    <div className="flex items-center gap-4 pt-2 border-t border-outline-variant/10">
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-on-surface">{c.totalOrders}</p>
+                        <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Orders</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-primary">₹{c.totalSpent}</p>
+                        <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Spent</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
@@ -329,7 +384,7 @@ export default function OrdersPage() {
                 <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: 18 }}>close</span>
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               <div>
                 <label className="block font-label-md text-sm text-on-surface mb-1">Customer Name *</label>
                 <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md" placeholder="Rahul Sharma" />
@@ -339,12 +394,85 @@ export default function OrdersPage() {
                 <input type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md" placeholder="9876543210" />
               </div>
               <div>
-                <label className="block font-label-md text-sm text-on-surface mb-1">Items</label>
-                <textarea value={formItems} onChange={(e) => setFormItems(e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md resize-none" placeholder="Premium Handloom Saree x2, Kurti x1" />
+                <label className="block font-label-md text-sm text-on-surface mb-2">Products</label>
+                {formLoadingProducts ? (
+                  <p className="text-sm text-on-surface-variant">Loading products...</p>
+                ) : formProducts.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant">No products found. Add products from the Products page.</p>
+                ) : (
+                  <div>
+                    <input
+                      type="text"
+                      value={formProductSearch}
+                      onChange={(e) => setFormProductSearch(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white text-sm mb-2"
+                      placeholder="Search products..."
+                    />
+                    <div className="space-y-2 max-h-48 overflow-y-auto border border-outline-variant/20 rounded-xl p-2">
+                      {formProductSearch.trim() ? (
+                        (() => {
+                          const matches = formProducts.filter((p) =>
+                            p.name.toLowerCase().includes(formProductSearch.toLowerCase())
+                          );
+                          return matches.length === 0 ? (
+                            <p className="text-sm text-on-surface-variant p-2">No matching products</p>
+                          ) : (
+                            matches.map((p) => (
+                              <div key={p.id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-surface-container-low transition-colors">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-on-surface truncate">{p.name}</p>
+                                  <p className="text-xs text-on-surface-variant">₹{p.price}</p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setFormSelected((prev) => {
+                                      const next = { ...prev };
+                                      if ((next[p.id] || 0) <= 1) delete next[p.id];
+                                      else next[p.id] = (next[p.id] || 0) - 1;
+                                      return next;
+                                    })}
+                                    disabled={!formSelected[p.id]}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold border border-outline-variant/30 hover:bg-black/5 transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                                  >−</button>
+                                  <span className="w-6 text-center text-sm font-semibold">{formSelected[p.id] || 0}</span>
+                                  <button
+                                    onClick={() => setFormSelected((prev) => ({ ...prev, [p.id]: (prev[p.id] || 0) + 1 }))}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors cursor-pointer"
+                                    style={{ backgroundColor: "#ff6b35" }}
+                                  >+</button>
+                                </div>
+                              </div>
+                            ))
+                          );
+                        })()
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block font-label-md text-sm text-on-surface mb-1">Total (₹)</label>
-                <input type="number" value={formTotal} onChange={(e) => setFormTotal(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md" placeholder="2598" min="0" step="0.01" />
+              <div className="border-t border-outline-variant/20 pt-4">
+                <label className="block font-label-md text-sm text-on-surface mb-1">Custom Item (optional)</label>
+                <input type="text" value={formCustomDesc} onChange={(e) => setFormCustomDesc(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md mb-2" placeholder="Custom item description" />
+                <input type="number" value={formCustomPrice} onChange={(e) => setFormCustomPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md" placeholder="Custom item price" min="0" step="0.01" />
+              </div>
+              {Object.entries(formSelected).filter(([, qty]) => qty > 0).length > 0 && (
+                <div className="border-t border-outline-variant/20 pt-3 space-y-1.5">
+                  <span className="font-label-md text-xs text-on-surface-variant">Selected Items</span>
+                  {Object.entries(formSelected).filter(([, qty]) => qty > 0).map(([id, qty]) => {
+                    const p = formProducts.find((prod) => prod.id === id);
+                    if (!p) return null;
+                    return (
+                      <div key={id} className="flex items-center justify-between text-sm">
+                        <span className="text-on-surface truncate">{p.name} <span className="text-on-surface-variant">x{qty}</span></span>
+                        <span className="font-semibold text-on-surface">₹{p.price * qty}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-2 border-t border-outline-variant/20">
+                <span className="font-label-md text-sm text-on-surface">Total</span>
+                <span className="text-lg font-bold text-primary">₹{formTotal}</span>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-outline-variant/20 flex gap-3">

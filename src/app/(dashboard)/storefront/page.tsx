@@ -18,6 +18,7 @@ export default function StorefrontPage() {
   const [user, setUser] = useState<{ uid: string } | null>(null);
   const [sellerName, setSellerName] = useState("");
   const [sellerWhatsapp, setSellerWhatsapp] = useState("");
+  const [sellerInstagram, setSellerInstagram] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -117,6 +118,7 @@ export default function StorefrontPage() {
         const data = snap.data();
         setSellerName(data?.name || "");
         setSellerWhatsapp(data?.whatsapp || "");
+        setSellerInstagram(data?.instagram || "");
         setStoreSlug(data?.slug || "");
         const sf = data?.storefront;
         if (sf) {
@@ -744,7 +746,7 @@ export default function StorefrontPage() {
           </div>
         </div>
 
-        <div className="p-6 flex justify-center">
+        <div className="p-3 sm:p-6 flex justify-center">
           {previewMode === "desktop" ? (
             /* ── Desktop Preview (original full-width layout) ── */
             <div className="flex flex-col w-full rounded-xl border border-outline-variant/20 overflow-hidden" style={{
@@ -759,15 +761,15 @@ export default function StorefrontPage() {
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}>
-                <div className="flex h-full items-center justify-center w-full mx-auto" style={{ maxWidth: 1200 }}>
+                <div className="flex h-full items-center justify-center w-full mx-auto overflow-hidden px-2" style={{ maxWidth: 1200 }}>
                   {navbarLogoURL ? (
-                    <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: 200 }} />
+                    <img src={navbarLogoURL} alt="Store" className="object-contain" style={{ height: navbarLogoHeight, maxWidth: `min(200px, 40vw)` }} />
                   ) : navbarLogoText ? (
-                    <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
+                    <span className="truncate max-w-full" style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: `min(${navbarLogoHeight}px, 5.5vw)`, fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>
                       {navbarLogoText}
                     </span>
                   ) : sellerName ? (
-                    <span style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: navbarLogoHeight, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>
+                    <span className="truncate max-w-full" style={{ fontFamily: `"${navbarLogoFont}", serif`, color: navbarLogoTextColor, fontSize: `min(${navbarLogoHeight}px, 5.5vw)`, fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>
                       {sellerName}
                     </span>
                   ) : null}

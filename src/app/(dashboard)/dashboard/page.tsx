@@ -33,7 +33,7 @@ export default function DashboardPage() {
         router.push("/settings");
         return;
       }
-      const slug = data?.slug || u.uid;
+      const slug = data?.slug || (data?.name ? data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "store" : u.uid);
       setStoreLink(`${window.location.origin}/store/${slug}`);
       setProductCount(prodSnap.size);
       setOrderCount(orderSnap.size);
@@ -124,7 +124,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="font-label-md text-sm text-on-surface-variant mb-1">Your store link</p>
-            <a href={storeLink} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-black truncate block hover:underline">{storeLink}</a>
+            <a href={storeLink} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-black truncate block hover:underline">Click here to go to your store</a>
           </div>
           <button
             onClick={copyStoreLink}
