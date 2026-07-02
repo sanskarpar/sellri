@@ -853,52 +853,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Password */}
-          {!newEmail ? (
-            <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm text-center">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-3 block">mail</span>
-              <h2 className="font-headline-md text-xl text-on-surface mb-2">Password</h2>
-              <p className="text-on-surface-variant">Please add an email address in your <button onClick={() => setTab("store")} className="text-primary underline cursor-pointer">Store tab</button> first.</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl p-6 md:p-8 border border-outline-variant/30 shadow-sm">
-              <h2 className="font-headline-md text-xl text-on-surface mb-2">{hasPasswordAuth ? "Change Password" : "Set Password"}</h2>
-              <p className="text-on-surface-variant mb-6">{hasPasswordAuth ? "Update your account password." : "Set a password to sign in with your email."}</p>
-
-              {passwordError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 font-label-sm text-red-600 mb-4">{passwordError}</div>
-              )}
-              {passwordMsg && (
-                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 font-label-sm text-green-600 mb-4">{passwordMsg}</div>
-              )}
-
-              <div className="space-y-4">
-                {[
-                  ...(hasPasswordAuth ? [{ label: "Current Password", value: currentPassword, set: setCurrentPassword, ph: "Enter current password" }] : []),
-                  { label: "New Password", value: newPassword, set: setNewPassword, ph: "Min 6 characters" },
-                  { label: "Confirm New Password", value: confirmPassword, set: setConfirmPassword, ph: "Re-enter new password" },
-                ].map(({ label, value, set, ph }) => (
-                  <div key={label}>
-                    <label className="block font-label-md text-sm text-on-surface mb-1">{label}</label>
-                    <input
-                      type="password" value={value}
-                      onChange={(e) => set(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
-                      placeholder={ph}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={handleChangePassword} disabled={saving}
-                className="w-full mt-8 py-3 rounded-xl font-label-md text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer"
-                style={{ backgroundColor: "#ff6b35", boxShadow: "0 8px 16px rgba(255,107,53,0.2)" }}
-              >
-                {saving ? "Saving..." : hasPasswordAuth ? "Change Password" : "Set Password"}
-              </button>
-            </div>
-          )}
         </div>
       )}
 

@@ -65,7 +65,7 @@ export default function TermsPage() {
 
         <h2 className="text-lg font-semibold text-on-surface mt-8 mb-3">6. Payments and Subscription</h2>
         <ul className="list-disc pl-6 text-on-surface space-y-1 mb-4">
-          <li>Sellri charges a subscription fee of ₹59/month for access to the platform.</li>
+          <li>Sellri charges a subscription fee of ₹149/month for access to the platform.</li>
           <li>Payments are processed via Razorpay. By subscribing, you authorise recurring charges to your payment method on a monthly basis.</li>
           <li>Subscriptions auto-renew unless cancelled before the renewal date.</li>
           <li>You will receive a reminder via WhatsApp or email before each renewal.</li>

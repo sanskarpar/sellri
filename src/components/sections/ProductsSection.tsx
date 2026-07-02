@@ -14,6 +14,7 @@ export type Product = {
   photoURLs?: string[];
   inStock: boolean;
   category: string;
+  slug?: string;
 };
 
 type ProductsSectionProps = {
@@ -29,6 +30,8 @@ type ProductsSectionProps = {
   bgColor?: string;
   bgGradient?: string;
   bgImage?: string;
+  storeSlug?: string;
+  initialProductSlug?: string;
 };
 
 type SortMode = "newest" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
@@ -46,6 +49,8 @@ export default function ProductsSection({
   bgColor = "",
   bgGradient = "",
   bgImage = "",
+  storeSlug,
+  initialProductSlug,
 }: ProductsSectionProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts || []);
   const [activeCat, setActiveCat] = useState("");
@@ -56,6 +61,13 @@ export default function ProductsSection({
   const [showMobileSort, setShowMobileSort] = useState(false);
 
   useLockBody(!!selectedProduct);
+
+  useEffect(() => {
+    if (initialProductSlug && products.length > 0) {
+      const found = products.find((p) => p.slug === initialProductSlug);
+      if (found) setSelectedProduct(found);
+    }
+  }, [initialProductSlug, products]);
 
   const sortLabels: Record<SortMode, string> = {
     newest: "Newest",
@@ -334,6 +346,7 @@ export default function ProductsSection({
           whatsapp={whatsapp}
           instagram={instagram}
           orderMethod={orderMethod}
+          storeSlug={storeSlug}
         />
       )}
     </>
@@ -347,6 +360,7 @@ export function ProductDetailModal({
   whatsapp,
   instagram,
   orderMethod,
+  storeSlug,
 }: {
   product: Product;
   onClose: () => void;
@@ -354,9 +368,13 @@ export function ProductDetailModal({
   whatsapp: string;
   instagram: string;
   orderMethod: "whatsapp" | "instagram" | "razorpay";
+  storeSlug?: string;
 }) {
   const allPhotos = product.photoURLs?.length ? product.photoURLs : product.photoURL ? [product.photoURL] : [];
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const productUrl = product.slug && storeSlug ? `${window.location.origin}/store/${storeSlug}?product=${product.slug}` : "";
 
   const whatsappMsg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
   const whatsappUrl = `https://wa.me/91${whatsapp}?text=${encodeURIComponent(whatsappMsg)}`;
@@ -495,6 +513,22 @@ export function ProductDetailModal({
                   </a>
                 )}
               </>
+            )}
+            {productUrl && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(productUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch { /* fallback */ }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-label-md text-sm text-on-surface-variant hover:text-on-surface hover:bg-black/5 active:scale-[0.97] transition-all border border-outline"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{copied ? "check" : "link"}</span>
+                {copied ? "Copied!" : "Copy Link"}
+              </button>
             )}
           </div>
         </div>

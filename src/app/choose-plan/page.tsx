@@ -6,10 +6,10 @@ import { doc, getDoc, setDoc, addDoc, collection, Timestamp } from "firebase/fir
 import { db } from "@/lib/firebase";
 
 const PLANS = [
-  { key: "1month", label: "1 Month", price: 59, per: "/mo", subtitle: "Billed monthly", badge: true },
-  { key: "3months", label: "3 Months", price: 149, per: "", subtitle: "₹49.6/mo — Save 16%", badge: false },
-  { key: "6months", label: "6 Months", price: 249, per: "", subtitle: "₹41.5/mo — Save 30%", badge: false },
-  { key: "12months", label: "12 Months", price: 449, per: "", subtitle: "₹37.4/mo — Save 37%", badge: true },
+  { key: "1month", label: "1 Month", price: 149, per: "/mo", subtitle: "₹149/mo", badge: false },
+  { key: "3months", label: "3 Months", price: 399, per: "", subtitle: "₹133/mo — Save 11%", badge: false },
+  { key: "6months", label: "6 Months", price: 699, per: "", subtitle: "₹116.5/mo — Save 22%", badge: false },
+  { key: "12months", label: "12 Months", price: 999, per: "", subtitle: "₹83.25/mo — Save 44%", badge: true },
 ];
 
 export default function ChoosePlanPage() {
@@ -105,7 +105,7 @@ export default function ChoosePlanPage() {
         inStock: true,
       });
 
-      router.push("/settings");
+      router.push("/dashboard");
     } catch {
       alert("Something went wrong. Please try again.");
       setBusy(false);
@@ -178,7 +178,7 @@ export default function ChoosePlanPage() {
                   razorpayOrderId: response.razorpay_order_id,
                   updatedAt: Timestamp.now(),
                 }, { merge: true });
-                    router.push("/settings");
+                    router.push("/dashboard");
                   } else {
                     alert(d.error || "Verification failed");
                   }
@@ -281,7 +281,7 @@ export default function ChoosePlanPage() {
               <div className="text-center mb-5">
                 <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-wider mb-1">Professional Plan</p>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold text-on-surface tracking-tight">₹59</span>
+                  <span className="text-4xl font-extrabold text-on-surface tracking-tight">₹149</span>
                   <span className="text-on-surface-variant text-sm">/month</span>
                 </div>
               </div>
@@ -320,12 +320,13 @@ export default function ChoosePlanPage() {
 
               <button
                 onClick={handleSubscribe}
-                disabled={!selectedPlan || busy}
+                disabled={true || !selectedPlan || busy}
                 className="w-full py-3 rounded-xl font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-40 cursor-pointer"
                 style={{ backgroundColor: "#f68f1d" }}
               >
                 {busy ? "Processing..." : selectedPlan ? `Pay ₹${PLANS.find(p => p.key === selectedPlan)?.price}` : "Select a plan above"}
               </button>
+              <p className="text-center text-xs text-on-surface-variant mt-2">Payments disabled — start your free trial above.</p>
 
               {!trialAvailable && !isActiveTrial && !isRenewal && (
                 <p className="text-center text-xs text-on-surface-variant mt-3">

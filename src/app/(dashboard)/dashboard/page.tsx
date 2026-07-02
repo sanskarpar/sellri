@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { doc, getDoc, collection, query, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
+import OnboardingModal from "@/components/OnboardingModal";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ uid: string; name: string; email: string } | null>(null);
+  const [onboarding, setOnboarding] = useState(false);
   const [checking, setChecking] = useState(true);
   const [productCount, setProductCount] = useState(0);
   const [orderCount, setOrderCount] = useState(0);
@@ -30,7 +32,8 @@ export default function DashboardPage() {
       if (!userSnap.exists()) { setChecking(false); return; }
       const data = userSnap.data();
       if (data?.onboarded !== true) {
-        router.push("/settings");
+        setOnboarding(true);
+        setChecking(false);
         return;
       }
       const slug = data?.slug || (data?.name ? data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "store" : u.uid);
@@ -73,6 +76,10 @@ export default function DashboardPage() {
   }
 
   if (!user || checking) return null;
+
+  if (onboarding && user) {
+    return <OnboardingModal uid={user.uid} name={user.name} email={user.email} />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto">

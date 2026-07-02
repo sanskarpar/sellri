@@ -18,6 +18,7 @@ type Product = {
   inStock: boolean;
   category: string;
   createdAt?: any;
+  slug?: string;
 };
 
 type Category = string;
@@ -48,7 +49,22 @@ export default function ProductsPage() {
   const [formInStock, setFormInStock] = useState(true);
   const [newCategory, setNewCategory] = useState("");
 
+  const [sellerSlug, setSellerSlug] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+
+  function generateProductSlug(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "product";
+  }
+
+  async function ensureUniqueSlug(base: string, existingId?: string): Promise<string> {
+    let slug = base;
+    let i = 1;
+    while (products.some((p) => p.slug === slug && p.id !== existingId)) {
+      slug = `${base}-${i}`;
+      i++;
+    }
+    return slug;
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem("sellri_user");
@@ -56,9 +72,17 @@ export default function ProductsPage() {
     const u = JSON.parse(stored);
     setUser(u);
     loadProducts(u.uid);
-    getDoc(doc(db, "users", u.uid)).then((snap) => {
-      if (snap.exists() && snap.data()?.makeToOrder) {
-        setMakeToOrder(true);
+    getDoc(doc(db, "users", u.uid)).then(async (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.makeToOrder) setMakeToOrder(true);
+        if (data?.slug) {
+          setSellerSlug(data.slug);
+        } else if (data?.name) {
+          const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "store";
+          setSellerSlug(slug);
+          await updateDoc(doc(db, "users", u.uid), { slug });
+        }
       }
     });
   }, [router]);
@@ -69,11 +93,22 @@ export default function ProductsPage() {
     const snap = await getDocs(q);
     const list: Product[] = [];
     const cats = new Set<Category>();
+    const slugUpdates: Promise<void>[] = [];
     snap.forEach((d) => {
       const data = d.data() as any;
+      if (!data.slug) {
+        data.slug = generateProductSlug(data.name || "product");
+        let i = 1;
+        while (list.some((p) => p.slug === data.slug)) {
+          data.slug = `${generateProductSlug(data.name || "product")}-${i}`;
+          i++;
+        }
+        slugUpdates.push(updateDoc(doc(db, "users", uid, "products", d.id), { slug: data.slug }));
+      }
       list.push({ id: d.id, ...data });
       if (data.category) cats.add(data.category);
     });
+    if (slugUpdates.length > 0) await Promise.all(slugUpdates);
     setProducts(list);
     setCategories(Array.from(cats).sort());
     setLoading(false);
@@ -142,6 +177,8 @@ export default function ProductsPage() {
         }
       }
 
+      const slug = editingProduct?.slug || await ensureUniqueSlug(generateProductSlug(formName.trim()));
+
       const data: Record<string, any> = {
         name: formName.trim(),
         price: parseFloat(formPrice),
@@ -150,6 +187,7 @@ export default function ProductsPage() {
         photoURL: photoURLs[0] || "",
         photoURLs,
         inStock: makeToOrder ? true : formInStock,
+        slug,
         updatedAt: serverTimestamp(),
       };
       if (editingProduct) {
@@ -290,12 +328,33 @@ export default function ProductsPage() {
                   <button
                     onClick={() => openEditForm(product)}
                     className="w-10 h-10 rounded-full bg-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                    title="Edit"
                   >
                     <span className="material-symbols-outlined text-on-surface" style={{ fontSize: 18 }}>edit</span>
                   </button>
+                  {sellerSlug && product.slug && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await navigator.clipboard.writeText(`${window.location.origin}/store/${sellerSlug}?product=${product.slug}`);
+                          const btn = e.currentTarget;
+                          btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">check</span>';
+                          setTimeout(() => {
+                            btn.innerHTML = '<span class="material-symbols-outlined text-on-surface" style="font-size:18px">link</span>';
+                          }, 2000);
+                        } catch { /* fallback */ }
+                      }}
+                      className="w-10 h-10 rounded-full bg-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                      title="Copy product link"
+                    >
+                      <span className="material-symbols-outlined text-on-surface" style={{ fontSize: 18 }}>link</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setDeleteTarget(product)}
                     className="w-10 h-10 rounded-full bg-white flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                    title="Delete"
                   >
                     <span className="material-symbols-outlined text-red-500" style={{ fontSize: 18 }}>delete</span>
                   </button>
@@ -339,6 +398,20 @@ export default function ProductsPage() {
                 >
                   Edit
                 </button>
+                {sellerSlug && product.slug && (
+                  <button
+                    onClick={async (e) => {
+                      try {
+                        await navigator.clipboard.writeText(`${window.location.origin}/store/${sellerSlug}?product=${product.slug}`);
+                        (e.currentTarget as HTMLElement).textContent = "Copied!";
+                        setTimeout(() => { (e.currentTarget as HTMLElement).textContent = "Copy Link"; }, 2000);
+                      } catch { /* fallback */ }
+                    }}
+                    className="flex-1 py-2.5 rounded-xl border border-outline-variant/30 text-sm font-label-md text-on-surface hover:bg-black/5 transition-colors cursor-pointer"
+                  >
+                    Copy Link
+                  </button>
+                )}
                 <button
                   onClick={() => setDeleteTarget(product)}
                   className="flex-1 py-2.5 rounded-xl border border-red-200 text-sm font-label-md text-red-500 hover:bg-red-50 transition-colors cursor-pointer"

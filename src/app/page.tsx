@@ -330,7 +330,7 @@ export default function Home() {
                   <div className="text-center mb-6 md:mb-space-lg">
                     <p className="text-on-surface-variant font-label-md text-sm md:text-base mb-1 md:mb-2">Professional Plan</p>
                     <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight">₹59</span>
+                      <span className="text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight">₹149</span>
                       <span className="text-on-surface-variant text-sm md:text-base">/month</span>
                     </div>
                   </div>

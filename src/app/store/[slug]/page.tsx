@@ -63,6 +63,7 @@ type Product = {
   photoURLs?: string[];
   inStock: boolean;
   category: string;
+  slug?: string;
 };
 
 type CartItem = { product: Product; quantity: number };
@@ -130,6 +131,13 @@ export default function StorefrontPage() {
     paymentId: string;
   } | null>(null);
 
+  const [productParam, setProductParam] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setProductParam(params.get("product") || "");
+  }, []);
+
   useGoogleFont(seller?.storefront?.theme?.font || "");
 
   useLockBody(showCart || showCustomOrder || !!selectedProduct || showCustomerForm || !!orderConfirmed || processingPayment);
@@ -148,6 +156,14 @@ export default function StorefrontPage() {
     script.onload = () => setRazorpayLoaded(true);
     document.body.appendChild(script);
   }, [seller]);
+
+  // Auto-open product modal from URL param
+  useEffect(() => {
+    if (productParam && products.length > 0) {
+      const found = products.find((p) => p.slug === productParam);
+      if (found) setSelectedProduct(found);
+    }
+  }, [productParam, products]);
 
   // Cart persistence — load from localStorage when seller changes
   useEffect(() => {
@@ -798,6 +814,8 @@ export default function StorefrontPage() {
             bgColor={productsConfig.bgColor || ""}
             bgGradient={productsConfig.bgGradient || ""}
             bgImage={productsConfig.bgImage || ""}
+            storeSlug={slug}
+            initialProductSlug={productParam}
           />
           </div>
           <FooterSection
@@ -1368,6 +1386,7 @@ export default function StorefrontPage() {
           whatsapp={seller?.whatsapp || ""}
           instagram={seller?.instagram || ""}
           orderMethod={seller?.orderMethod || "whatsapp"}
+          storeSlug={slug}
         />
       )}
 

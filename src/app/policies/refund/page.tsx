@@ -17,7 +17,7 @@ export default function RefundPage() {
 
         <h2 className="text-lg font-semibold text-on-surface mt-8 mb-3">Subscription Fees</h2>
         <p className="text-on-surface mb-4">
-          Sellri charges ₹59/month for platform access. This fee is charged at the start of each billing period.
+          Sellri charges ₹149/month for platform access. This fee is charged at the start of each billing period.
         </p>
 
         <h2 className="text-lg font-semibold text-on-surface mt-8 mb-3">Refunds</h2>
