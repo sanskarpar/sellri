@@ -15,6 +15,8 @@ export type Product = {
   inStock: boolean;
   category: string;
   slug?: string;
+  sizes?: { name: string; price?: number }[];
+  colors?: { name: string; hex?: string }[];
 };
 
 type ProductsSectionProps = {
@@ -26,12 +28,13 @@ type ProductsSectionProps = {
   title: string;
   subtitle?: string;
   showCategoryFilter?: boolean;
-  onAddToCart?: (product: Product, quantity?: number) => void;
+  onAddToCart?: (product: Product, quantity?: number, selectedSize?: string, selectedColor?: string) => void;
   bgColor?: string;
   bgGradient?: string;
   bgImage?: string;
   storeSlug?: string;
   initialProductSlug?: string;
+  paymentModes?: { online?: boolean; cod?: boolean; partial_cod?: boolean };
 };
 
 type SortMode = "newest" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
@@ -51,6 +54,7 @@ export default function ProductsSection({
   bgImage = "",
   storeSlug,
   initialProductSlug,
+  paymentModes,
 }: ProductsSectionProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts || []);
   const [activeCat, setActiveCat] = useState("");
@@ -319,6 +323,12 @@ export default function ProductsSection({
               </div>
               <p className="text-xs sm:text-sm text-on-surface-variant whitespace-nowrap">
                 {filtered.length} {filtered.length === 1 ? "product" : "products"}
+                {paymentModes?.cod && (
+                  <span className="ml-2 text-green-600 font-medium">· COD Available</span>
+                )}
+                {paymentModes?.partial_cod && (
+                  <span className="ml-2 text-green-600 font-medium">· Partial COD Available</span>
+                )}
               </p>
             </div>
 
@@ -368,7 +378,7 @@ function ProductDetailModalRaw({
 }: {
   product: Product;
   onClose: () => void;
-  onAddToCart?: (product: Product, quantity?: number) => void;
+  onAddToCart?: (product: Product, quantity?: number, selectedSize?: string, selectedColor?: string) => void;
   whatsapp: string;
   instagram: string;
   orderMethod: "whatsapp" | "instagram" | "razorpay";
@@ -378,10 +388,14 @@ function ProductDetailModalRaw({
   const [photoIndex, setPhotoIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]?.name || "");
+  const [selectedColor, setSelectedColor] = useState(product.colors?.[0]?.name || "");
 
   useEffect(() => {
     setQuantity(1);
-  }, [product.id]);
+    setSelectedSize(product.sizes?.[0]?.name || "");
+    setSelectedColor(product.colors?.[0]?.name || "");
+  }, [product.id, product.sizes, product.colors]);
 
   const productUrl = product.slug && storeSlug ? `${window.location.origin}/store/${storeSlug}?product=${product.slug}` : "";
 
@@ -453,17 +467,69 @@ function ProductDetailModalRaw({
           <div>
             <h2 className="font-headline-md text-xl sm:text-2xl md:text-3xl lg:text-4xl text-on-surface font-bold leading-tight">{product.name}</h2>
 
+            {(() => {
+              const sizeOverride = product.sizes?.find((s) => s.name === selectedSize)?.price || 0;
+              const displayPrice = product.price + sizeOverride;
+              return (
             <div className="flex items-baseline gap-2 mt-3 sm:mt-4">
               <span className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ color: "var(--color-primary, #ff6b35)" }}>
-                ₹{product.price.toLocaleString("en-IN")}
+                ₹{displayPrice.toLocaleString("en-IN")}
               </span>
+              {sizeOverride > 0 && (
+                <span className="text-sm text-on-surface-variant">(₹{product.price.toLocaleString("en-IN")} base + ₹{sizeOverride})</span>
+              )}
             </div>
+              );
+            })()}
 
             {product.category && (
               <div className="mt-4 sm:mt-5">
                 <span className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium bg-surface-container-low text-on-surface-variant border border-outline-variant/20">
                   {product.category}
                 </span>
+              </div>
+            )}
+
+            {/* Sizes */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="mt-5 sm:mt-6">
+                <div className="w-10 h-0.5 rounded-full bg-outline-variant/30 mb-3 sm:mb-4" />
+                <p className="text-sm font-medium text-on-surface mb-2">Size:</p>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={size.name}
+                      onClick={(e) => { e.stopPropagation(); setSelectedSize(size.name); }}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${selectedSize === size.name ? "text-white shadow-sm" : "text-on-surface border-outline hover:border-primary"}`}
+                      style={selectedSize === size.name ? { backgroundColor: "var(--color-primary, #ff6b35)", borderColor: "var(--color-primary, #ff6b35)" } : {}}
+                    >
+                      {size.name}{size.price != null && size.price > 0 ? ` +₹${size.price}` : ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Colors */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="mt-4 sm:mt-5">
+                <div className="w-10 h-0.5 rounded-full bg-outline-variant/30 mb-3 sm:mb-4" />
+                <p className="text-sm font-medium text-on-surface mb-2">Color:</p>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((color) => (
+                    <button
+                      key={color.name}
+                      onClick={(e) => { e.stopPropagation(); setSelectedColor(color.name); }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${selectedColor === color.name ? "text-white shadow-sm" : "text-on-surface border-outline hover:border-primary"}`}
+                      style={selectedColor === color.name ? { backgroundColor: "var(--color-primary, #ff6b35)", borderColor: "var(--color-primary, #ff6b35)" } : {}}
+                    >
+                      {color.hex && (
+                        <span className="w-4 h-4 rounded-full border border-white/30 shrink-0" style={{ backgroundColor: color.hex }} />
+                      )}
+                      {color.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -495,9 +561,15 @@ function ProductDetailModalRaw({
                   +
                 </button>
               </div>
+              {(() => {
+                const sizeOverride = product.sizes?.find((s) => s.name === selectedSize)?.price || 0;
+                const unitPrice = product.price + sizeOverride;
+                return (
               <span className="text-sm text-on-surface-variant ml-auto">
-                Total: <span className="font-bold text-on-surface">₹{(product.price * quantity).toLocaleString("en-IN")}</span>
+                Total: <span className="font-bold text-on-surface">₹{(unitPrice * quantity).toLocaleString("en-IN")}</span>
               </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -528,12 +600,12 @@ function ProductDetailModalRaw({
               <>
                 <button
                   type="button"
-                  onClick={() => { onAddToCart?.(product, quantity); onClose(); }}
+                  onClick={() => { onAddToCart?.(product, quantity, selectedSize, selectedColor); onClose(); }}
                   className="w-full flex items-center justify-center gap-3 py-3.5 sm:py-4 md:py-5 rounded-2xl font-label-md text-base sm:text-lg text-white hover:brightness-110 active:scale-[0.97] transition-all cursor-pointer shadow-lg hover:shadow-xl"
                   style={{ backgroundColor: "var(--color-primary, #ff6b35)" }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 24 }}>add_shopping_cart</span>
-                  Add to Cart — {quantity} × ₹{product.price.toLocaleString("en-IN")}
+                  Add to Cart — {quantity} × ₹{(product.price + (product.sizes?.find((s) => s.name === selectedSize)?.price || 0)).toLocaleString("en-IN")}
                 </button>
                 {whatsapp && (
                   <a

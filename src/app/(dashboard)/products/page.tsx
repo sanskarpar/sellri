@@ -19,6 +19,8 @@ type Product = {
   category: string;
   createdAt?: any;
   slug?: string;
+  sizes?: { name: string; price?: number }[];
+  colors?: { name: string; hex?: string }[];
 };
 
 type Category = string;
@@ -48,6 +50,8 @@ export default function ProductsPage() {
   const [activeSlot, setActiveSlot] = useState(0);
   const [formInStock, setFormInStock] = useState(true);
   const [newCategory, setNewCategory] = useState("");
+  const [formSizes, setFormSizes] = useState<{ name: string; price?: number }[]>([]);
+  const [formColors, setFormColors] = useState<{ name: string; hex?: string }[]>([]);
 
   const [sellerSlug, setSellerSlug] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
@@ -124,6 +128,8 @@ export default function ProductsPage() {
     setFormPhotoPreviews(["", "", ""]);
     setFormInStock(true);
     setNewCategory("");
+    setFormSizes([]);
+    setFormColors([]);
     setEditingProduct(null);
   }
 
@@ -139,6 +145,8 @@ export default function ProductsPage() {
     setFormDescription(product.description);
     setFormCategory(product.category);
     setFormInStock(product.inStock);
+    setFormSizes(product.sizes ? JSON.parse(JSON.stringify(product.sizes)) : []);
+    setFormColors(product.colors ? JSON.parse(JSON.stringify(product.colors)) : []);
     const existing = product.photoURLs?.length ? product.photoURLs : product.photoURL ? [product.photoURL] : [];
     setFormPhotoPreviews([existing[0] || "", existing[1] || "", existing[2] || ""]);
     setFormPhotoFiles([null, null, null]);
@@ -186,10 +194,12 @@ export default function ProductsPage() {
         category,
         photoURL: photoURLs[0] || "",
         photoURLs,
-        inStock: makeToOrder ? true : formInStock,
-        slug,
-        updatedAt: serverTimestamp(),
-      };
+      inStock: makeToOrder ? true : formInStock,
+      slug,
+      sizes: formSizes.length > 0 ? formSizes.map((s) => ({ name: s.name, ...(s.price ? { price: s.price } : {}) })) : [],
+      colors: formColors.length > 0 ? formColors.map((c) => ({ name: c.name, ...(c.hex ? { hex: c.hex } : {}) })) : [],
+      updatedAt: serverTimestamp(),
+    };
       if (editingProduct) {
         await updateDoc(doc(db, "users", user.uid, "products", editingProduct.id), data);
       } else {
@@ -564,6 +574,109 @@ export default function ProductsPage() {
                   className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
                   placeholder={categories.length > 0 ? "Or type a new category..." : "e.g. Sarees, Kurtis, Accessories"}
                 />
+              </div>
+
+              {/* Sizes */}
+              <div className="border-t border-outline-variant/20 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-label-md font-semibold text-sm text-on-surface">Sizes (optional)</p>
+                  <button
+                    type="button"
+                    onClick={() => setFormSizes((prev) => [...prev, { name: "", price: undefined }])}
+                    className="text-xs font-semibold text-primary hover:opacity-80 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Add Size
+                  </button>
+                </div>
+                {formSizes.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant">No sizes added. Customers won't see a size selector.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {formSizes.map((size, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text" value={size.name}
+                          onChange={(e) => {
+                            const next = [...formSizes];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setFormSizes(next);
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white text-sm"
+                          placeholder="e.g. Small, Medium, Large"
+                        />
+                        <input
+                          type="number" min="0" value={size.price ?? ""}
+                          onChange={(e) => {
+                            const next = [...formSizes];
+                            next[idx] = { ...next[idx], price: e.target.value ? Number(e.target.value) : undefined };
+                            setFormSizes(next);
+                          }}
+                          className="w-24 px-3 py-2 rounded-lg border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white text-sm"
+                          placeholder="Price +₹"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormSizes((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-2 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-all"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Colors */}
+              <div className="border-t border-outline-variant/20 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-label-md font-semibold text-sm text-on-surface">Colors (optional)</p>
+                  <button
+                    type="button"
+                    onClick={() => setFormColors((prev) => [...prev, { name: "", hex: "" }])}
+                    className="text-xs font-semibold text-primary hover:opacity-80 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Add Color
+                  </button>
+                </div>
+                {formColors.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant">No colors added. Customers won't see a color selector.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {formColors.map((color, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text" value={color.name}
+                          onChange={(e) => {
+                            const next = [...formColors];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setFormColors(next);
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white text-sm"
+                          placeholder="e.g. Red, Blue, Green"
+                        />
+                        <div className="relative">
+                          <input
+                            type="color" value={color.hex || "#000000"}
+                            onChange={(e) => {
+                              const next = [...formColors];
+                              next[idx] = { ...next[idx], hex: e.target.value };
+                              setFormColors(next);
+                            }}
+                            className="w-10 h-10 rounded-lg border border-outline cursor-pointer bg-white p-0.5"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormColors((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-2 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-all"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* In stock toggle (hidden when makeToOrder) */}

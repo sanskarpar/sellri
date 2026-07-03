@@ -6,7 +6,7 @@ import { collection, query, orderBy, getDocs, addDoc, updateDoc, doc, deleteDoc,
 import { db } from "@/lib/firebase";
 import { useLockBody } from "@/hooks/useLockBody";
 
-const STATUSES = ["Received", "Paid", "Out for Delivery", "Delivered"] as const;
+const STATUSES = ["Received", "Paid", "COD", "Out for Delivery", "Delivered"] as const;
 type OrderStatus = (typeof STATUSES)[number];
 
 type Order = {
@@ -22,6 +22,9 @@ type Order = {
   status: OrderStatus;
   source?: "manual" | "razorpay";
   paymentId?: string;
+  paymentMode?: string;
+  paidAmount?: number;
+  codAmount?: number;
   createdAt?: any;
 };
 
@@ -198,7 +201,13 @@ export default function OrdersPage() {
                         {order.reference && (
                           <span className="text-xs font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-lg">{order.reference}</span>
                         )}
-                        {isRazorpay && (
+                        {order.paymentMode === "cod" && (
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg">COD</span>
+                        )}
+                        {order.paymentMode === "partial_cod" && (
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg">Partial COD</span>
+                        )}
+                        {isRazorpay && (!order.paymentMode || order.paymentMode === "online") && (
                           <span className="text-[10px] uppercase tracking-wider font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">Online</span>
                         )}
                       </div>
@@ -238,7 +247,10 @@ export default function OrdersPage() {
 
                   {/* Status tracker */}
                   <div className="flex items-center gap-1 md:gap-2 mt-4 pt-4 border-t border-outline-variant/20">
-                    {(order.source === "razorpay" ? STATUSES.filter((s) => s !== "Received") : STATUSES).map((s, i, arr) => {
+                    {(() => {
+                      const isCod = order.paymentMode === "cod" || order.paymentMode === "partial_cod";
+                      const statuses = isCod ? (["COD", "Out for Delivery", "Delivered"] as const) : (order.source === "razorpay" ? STATUSES.filter((s) => s !== "Received") : STATUSES);
+                      return statuses.map((s, i, arr) => {
                       const idx = arr.indexOf(order.status as any);
                       const isCurrent = order.status === s;
                       const isPast = idx > i;
@@ -260,7 +272,8 @@ export default function OrdersPage() {
                           )}
                         </div>
                       );
-                    })}
+                    });
+                    })()}
                   </div>
 
                   {/* Actions */}

@@ -72,6 +72,11 @@ export default function SettingsPage() {
   const [deliveryFlatFee, setDeliveryFlatFee] = useState("");
   const [deliveryFreeThresholdEnabled, setDeliveryFreeThresholdEnabled] = useState(false);
   const [deliveryFreeThreshold, setDeliveryFreeThreshold] = useState("");
+  const [allowOnlinePayment, setAllowOnlinePayment] = useState(true);
+  const [allowCod, setAllowCod] = useState(false);
+  const [allowPartialCod, setAllowPartialCod] = useState(false);
+  const [codPartialAmount, setCodPartialAmount] = useState("");
+  const [codPartialType, setCodPartialType] = useState<"flat" | "percent">("flat");
 
   const [customerFields, setCustomerFields] = useState({
     name: true,
@@ -123,6 +128,12 @@ export default function SettingsPage() {
         setDeliveryFlatFee(data.delivery?.flatFee?.toString() || "");
         setDeliveryFreeThresholdEnabled((data.delivery?.freeThreshold ?? 0) > 0);
         setDeliveryFreeThreshold(data.delivery?.freeThreshold?.toString() || "");
+        const dpm = data.delivery?.paymentModes || {};
+        setAllowOnlinePayment(dpm.online !== false);
+        setAllowCod(dpm.cod === true);
+        setAllowPartialCod(dpm.partial_cod === true);
+        setCodPartialAmount(data.delivery?.codPartialAmount?.toString() || "");
+        setCodPartialType(data.delivery?.codPartialType || "flat");
         setCustomerFields({
           name: data.customerFields?.name ?? true,
           phone: data.customerFields?.phone ?? false,
@@ -249,7 +260,10 @@ export default function SettingsPage() {
         type: deliveryType,
         flatFee: deliveryType === "flat" ? Number(deliveryFlatFee) || 0 : 0,
         freeThreshold: deliveryType === "flat" && deliveryFreeThresholdEnabled ? Number(deliveryFreeThreshold) || 0 : 0,
-      } : { type: "none", flatFee: 0, freeThreshold: 0 };
+        paymentModes: { online: allowOnlinePayment, cod: allowCod, partial_cod: allowPartialCod },
+        codPartialAmount: allowPartialCod ? Number(codPartialAmount) || 0 : 0,
+        codPartialType: allowPartialCod ? codPartialType : "flat",
+      } : { type: "none", flatFee: 0, freeThreshold: 0, paymentModes: { online: true, cod: false, partial_cod: false }, codPartialAmount: 0, codPartialType: "flat" };
       await updateDoc(doc(db, "users", user.uid), {
         orderMethod,
         whatsapp: orderMethod === "whatsapp" ? whatsapp : "",
@@ -646,6 +660,83 @@ export default function SettingsPage() {
 
           {orderMethod === "razorpay" && (
             <>
+              {/* Payment Options */}
+              <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
+                <h3 className="font-label-md font-semibold text-on-surface">Payment Options</h3>
+                <p className="text-xs text-on-surface-variant -mt-2">Choose which payment methods customers can use at checkout.</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                    allowOnlinePayment ? "border-primary bg-primary-container/5" : "border-outline hover:border-primary"
+                  }`}>
+                    <input
+                      type="checkbox" checked={allowOnlinePayment}
+                      onChange={(e) => setAllowOnlinePayment(e.target.checked)}
+                      className="mt-1 accent-primary"
+                    />
+                    <div>
+                      <p className="font-label-md font-bold text-on-surface text-sm">Pay at Razorpay</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Customers pay the full amount online via Razorpay (UPI, cards, etc).</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                    allowCod ? "border-primary bg-primary-container/5" : "border-outline hover:border-primary"
+                  }`}>
+                    <input
+                      type="checkbox" checked={allowCod}
+                      onChange={(e) => setAllowCod(e.target.checked)}
+                      className="mt-1 accent-primary"
+                    />
+                    <div>
+                      <p className="font-label-md font-bold text-on-surface text-sm">Cash on Delivery (COD)</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Customers pay in cash when the order is delivered — no online payment needed.</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                    allowPartialCod ? "border-primary bg-primary-container/5" : "border-outline hover:border-primary"
+                  }`}>
+                    <input
+                      type="checkbox" checked={allowPartialCod}
+                      onChange={(e) => setAllowPartialCod(e.target.checked)}
+                      className="mt-1 accent-primary"
+                    />
+                    <div>
+                      <p className="font-label-md font-bold text-on-surface text-sm">Partial COD</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Charge a partial amount online via Razorpay, rest as COD on delivery.</p>
+                    </div>
+                  </label>
+                </div>
+                {allowPartialCod && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setCodPartialType("flat")}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                          codPartialType === "flat" ? "bg-primary text-white" : "bg-outline-variant/20 text-on-surface-variant hover:bg-outline-variant/40"
+                        }`}
+                      >Flat (₹)</button>
+                      <button
+                        type="button"
+                        onClick={() => setCodPartialType("percent")}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                          codPartialType === "percent" ? "bg-primary text-white" : "bg-outline-variant/20 text-on-surface-variant hover:bg-outline-variant/40"
+                        }`}
+                      >Percent (%)</button>
+                    </div>
+                    <label className="block font-label-md text-sm text-on-surface mb-1">
+                      {codPartialType === "flat" ? "Amount to charge online (₹)" : "Percentage to charge online (%)"}
+                    </label>
+                    <input
+                      type="number" min="0" value={codPartialAmount}
+                      onChange={(e) => setCodPartialAmount(e.target.value.replace(/\D/g, ""))}
+                      className="w-full px-4 py-3 rounded-xl border border-outline focus:border-primary-container focus:ring-4 focus:ring-primary-container/10 transition-all bg-white font-body-md"
+                      placeholder={codPartialType === "flat" ? "e.g. 200" : "e.g. 20"}
+                    />
+                    <p className="text-xs text-on-surface-variant mt-1">The remaining amount will be collected as COD on delivery.</p>
+                  </div>
+                )}
+              </div>
+
               {/* Delivery Settings */}
               <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-4">
                 <h3 className="font-label-md font-semibold text-on-surface">Delivery</h3>

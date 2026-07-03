@@ -106,7 +106,7 @@ export default function OnboardingModal({ uid, name, email }: { uid: string; nam
         instagram: orderMethod === "instagram" ? instagram : "",
         razorpayKeyId: orderMethod === "razorpay" ? razorpayKeyId : "",
         razorpayKeySecret: orderMethod === "razorpay" ? razorpayKeySecret : "",
-        delivery: orderMethod === "razorpay" ? { type: "none", flatFee: 0, freeThreshold: 0 } : { type: "none", flatFee: 0, freeThreshold: 0 },
+        delivery: orderMethod === "razorpay" ? { type: "none", flatFee: 0, freeThreshold: 0, paymentMode: "online", codPartialAmount: 0, codPartialType: "flat" } : { type: "none", flatFee: 0, freeThreshold: 0, paymentMode: "online", codPartialAmount: 0, codPartialType: "flat" },
         customerFields: orderMethod === "razorpay" ? { name: true, phone: false, email: false, address: false, message: false } : { name: true, phone: false, email: false, address: false, message: false },
         onboarded: true,
         updatedAt: serverTimestamp(),
