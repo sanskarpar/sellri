@@ -273,11 +273,11 @@ export default function StorefrontPage() {
     return `https://ig.me/m/${seller.instagram}`;
   }, [seller?.instagram]);
 
-  const addToCart = useCallback((product: Product) => {
+  const addToCart = useCallback((product: Product, quantity: number = 1) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1 }];
+      if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + quantity } : i);
+      return [...prev, { product, quantity }];
     });
   }, []);
 

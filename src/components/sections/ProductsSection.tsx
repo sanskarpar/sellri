@@ -26,7 +26,7 @@ type ProductsSectionProps = {
   title: string;
   subtitle?: string;
   showCategoryFilter?: boolean;
-  onAddToCart?: (product: Product) => void;
+  onAddToCart?: (product: Product, quantity?: number) => void;
   bgColor?: string;
   bgGradient?: string;
   bgImage?: string;
@@ -368,7 +368,7 @@ function ProductDetailModalRaw({
 }: {
   product: Product;
   onClose: () => void;
-  onAddToCart?: (product: Product) => void;
+  onAddToCart?: (product: Product, quantity?: number) => void;
   whatsapp: string;
   instagram: string;
   orderMethod: "whatsapp" | "instagram" | "razorpay";
@@ -376,11 +376,16 @@ function ProductDetailModalRaw({
 }) {
   const allPhotos = product.photoURLs?.length ? product.photoURLs : product.photoURL ? [product.photoURL] : [];
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setQuantity(1);
+  }, [product.id]);
 
   const productUrl = product.slug && storeSlug ? `${window.location.origin}/store/${storeSlug}?product=${product.slug}` : "";
 
-  const whatsappMsg = `Hi, I'm interested in ${product.name} (₹${product.price})`;
+  const whatsappMsg = `Hi, I'd like to order ${quantity}x ${product.name} (₹${(product.price * quantity).toLocaleString("en-IN")})`;
   const whatsappUrl = `https://wa.me/91${whatsapp}?text=${encodeURIComponent(whatsappMsg)}`;
   const askWhatsappUrl = `https://wa.me/91${whatsapp}?text=${encodeURIComponent(`Hi, I have a question about ${product.name} (₹${product.price})`)}`;
   const instagramUrl = `https://ig.me/m/${instagram}`;
@@ -470,6 +475,32 @@ function ProductDetailModalRaw({
             )}
           </div>
 
+          {/* Quantity selector */}
+          <div className="mt-5 sm:mt-6">
+            <div className="w-10 h-0.5 rounded-full bg-outline-variant/30 mb-3 sm:mb-4" />
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="text-sm font-medium text-on-surface">Quantity:</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setQuantity((q) => Math.max(1, q - 1)); }}
+                  className="w-9 h-9 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold transition-colors"
+                >
+                  −
+                </button>
+                <span className="text-lg font-semibold w-8 text-center text-on-surface select-none">{quantity}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setQuantity((q) => q + 1); }}
+                  className="w-9 h-9 rounded-lg border border-outline flex items-center justify-center cursor-pointer hover:bg-surface-container-low text-sm font-bold transition-colors"
+                >
+                  +
+                </button>
+              </div>
+              <span className="text-sm text-on-surface-variant ml-auto">
+                Total: <span className="font-bold text-on-surface">₹{(product.price * quantity).toLocaleString("en-IN")}</span>
+              </span>
+            </div>
+          </div>
+
           <div className="space-y-3 pt-6 sm:pt-8 md:pt-10">
             {orderMethod === "whatsapp" ? (
               <a
@@ -480,7 +511,7 @@ function ProductDetailModalRaw({
                 style={{ backgroundColor: "#25D366" }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chat</span>
-                Order on WhatsApp
+                Order {quantity} on WhatsApp
               </a>
             ) : orderMethod === "instagram" ? (
               <a
@@ -491,18 +522,18 @@ function ProductDetailModalRaw({
                 style={{ background: "linear-gradient(135deg, #f58529, #dd2a7b, #8134af)" }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chat</span>
-                Order on Instagram
+                Order {quantity} on Instagram
               </a>
             ) : (
               <>
                 <button
                   type="button"
-                  onClick={() => { onAddToCart?.(product); onClose(); }}
+                  onClick={() => { onAddToCart?.(product, quantity); onClose(); }}
                   className="w-full flex items-center justify-center gap-3 py-3.5 sm:py-4 md:py-5 rounded-2xl font-label-md text-base sm:text-lg text-white hover:brightness-110 active:scale-[0.97] transition-all cursor-pointer shadow-lg hover:shadow-xl"
                   style={{ backgroundColor: "var(--color-primary, #ff6b35)" }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 24 }}>add_shopping_cart</span>
-                  Add to Cart
+                  Add to Cart — {quantity} × ₹{product.price.toLocaleString("en-IN")}
                 </button>
                 {whatsapp && (
                   <a
