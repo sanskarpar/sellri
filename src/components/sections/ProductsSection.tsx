@@ -393,6 +393,14 @@ function ProductDetailModalRaw({
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]?.name || "");
   const [selectedColor, setSelectedColor] = useState(product.colors?.[0]?.name || "");
   const [imgFallback, setImgFallback] = useState(false);
+  const [isTall, setIsTall] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    setIsTall(el.scrollHeight > el.clientHeight);
+  }, [product.description, product.sizes, product.colors]);
 
   useEffect(() => {
     setQuantity(1);
@@ -418,7 +426,8 @@ function ProductDetailModalRaw({
       onClick={onClose}
     >
       <div
-        className="bg-white sm:rounded-3xl w-full h-auto sm:h-auto max-h-[85vh] sm:max-h-[90vh] sm:max-w-5xl overflow-y-auto sm:overflow-hidden shadow-2xl relative md:flex animate-scaleIn"
+        ref={containerRef}
+        className={`bg-white sm:rounded-3xl w-full sm:max-h-[90vh] sm:max-w-5xl shadow-2xl relative animate-scaleIn md:flex ${isTall ? "flex flex-col h-full sm:flex-row" : "h-auto max-h-[85vh] sm:max-h-[90vh] overflow-y-auto sm:overflow-hidden"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -470,7 +479,7 @@ function ProductDetailModalRaw({
           )}
         </div>
 
-        <div className="md:w-1/2 p-5 sm:p-6 md:p-8 lg:p-10 flex flex-col justify-between md:overflow-y-auto">
+        <div className={`md:w-1/2 p-5 sm:p-6 md:p-8 lg:p-10 flex flex-col justify-between md:overflow-y-auto ${isTall ? "flex-1 overflow-y-auto" : ""}`}>
           <div>
             <h2 className="font-headline-md text-xl sm:text-2xl md:text-3xl lg:text-4xl text-on-surface font-bold leading-tight">{product.name}</h2>
 

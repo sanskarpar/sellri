@@ -106,7 +106,8 @@ export default function StorefrontPage() {
 
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
+  const [imagesReady, setImagesReady] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
@@ -196,8 +197,27 @@ export default function StorefrontPage() {
     }
   }, [cart, seller?.id]);
 
+  function preloadCriticalImages(sellerData: Seller, products: Product[]) {
+    const urls: string[] = [];
+    if (sellerData.storefront?.theme?.bgImage) {
+      urls.push(getResizedUrl(sellerData.storefront.theme.bgImage, "1920"));
+    }
+    if (sellerData.storefront?.navbar?.bgImage) {
+      urls.push(getResizedUrl(sellerData.storefront.navbar.bgImage, "1920"));
+    }
+    if (sellerData.storefront?.navbar?.logoURL) {
+      urls.push(sellerData.storefront.navbar.logoURL);
+    }
+    for (const p of products.slice(0, 4)) {
+      if (p.photoURL) urls.push(getResizedUrl(p.photoURL, "200x200"));
+    }
+    if (urls.length === 0) { setImagesReady(true); return; }
+    preloadImages([...new Set(urls)]).then(() => setImagesReady(true));
+  }
+
   async function loadStore() {
-    setLoading(true);
+    setDataReady(false);
+    setImagesReady(false);
 
     const cacheKey = `storefront:${slug}`;
     const cached = sessionStorage.getItem(cacheKey);
@@ -207,7 +227,8 @@ export default function StorefrontPage() {
         const parsed = JSON.parse(cached);
         setSeller(parsed.seller);
         setProducts(parsed.products);
-        setLoading(false);
+        setDataReady(true);
+        preloadCriticalImages(parsed.seller, parsed.products);
         usedCache = true;
       } catch {
         sessionStorage.removeItem(cacheKey);
@@ -215,7 +236,7 @@ export default function StorefrontPage() {
     }
 
     const store = await fetchStoreBySlug(slug);
-    if (!store) { if (!usedCache) setLoading(false); return; }
+    if (!store) { if (!usedCache) { setDataReady(true); setImagesReady(true); } return; }
 
     const data = store.data;
     const sellerId = store.id;
@@ -300,7 +321,10 @@ export default function StorefrontPage() {
     // Cache for instant repeat visits
     sessionStorage.setItem(cacheKey, JSON.stringify({ seller: sellerData, products: list }));
 
-    if (!usedCache) setLoading(false);
+    if (!usedCache) {
+      setDataReady(true);
+      preloadCriticalImages(sellerData, list);
+    }
   }
 
   const whatsappUrl = useCallback((product: Product) => {
@@ -936,7 +960,7 @@ export default function StorefrontPage() {
     [seller?.storefront]
   );
 
-  if (loading) {
+  if (!dataReady || !imagesReady) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
         <div
