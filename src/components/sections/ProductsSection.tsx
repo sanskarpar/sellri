@@ -396,6 +396,118 @@ function ProductDetailModalRaw({
   const [isTall, setIsTall] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [fullscreenImg, setFullscreenImg] = useState<string | null>(null);
+  const fsImgRef = useRef<HTMLImageElement>(null);
+  const fsState = useRef({ scale: 1, x: 0, y: 0 });
+  const fsTouch = useRef({ dist: 0, x: 0, y: 0, startX: 0, startY: 0, initScale: 1, initX: 0, initY: 0, moved: false, lastTap: 0 });
+
+  function applyFsTransform() {
+    const el = fsImgRef.current;
+    if (el) {
+      const s = fsState.current;
+      el.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale})`;
+    }
+  }
+
+  function openFs(imgSrc: string) {
+    setFullscreenImg(imgSrc);
+    fsState.current = { scale: 1, x: 0, y: 0 };
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeFs() {
+    setFullscreenImg(null);
+    fsState.current = { scale: 1, x: 0, y: 0 };
+    document.body.style.overflow = "";
+  }
+
+  function goToFsPhoto(index: number) {
+    setPhotoIndex(index);
+    setFullscreenImg(allPhotos[index]);
+    fsState.current = { scale: 1, x: 0, y: 0 };
+  }
+
+  const onFsTouchStart = (e: React.TouchEvent) => {
+    const t = fsTouch.current;
+    t.moved = false;
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      t.dist = Math.sqrt(dx * dx + dy * dy);
+      t.initScale = fsState.current.scale;
+    } else if (e.touches.length === 1) {
+      t.x = e.touches[0].clientX;
+      t.y = e.touches[0].clientY;
+      t.startX = e.touches[0].clientX;
+      t.startY = e.touches[0].clientY;
+      t.initX = fsState.current.x;
+      t.initY = fsState.current.y;
+    }
+  };
+
+  const onFsTouchMove = (e: React.TouchEvent) => {
+    const t = fsTouch.current;
+    t.moved = true;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (t.dist) {
+        const newScale = Math.max(1, Math.min(6, t.initScale * (dist / t.dist)));
+        fsState.current.scale = newScale;
+        if (newScale <= 1) {
+          fsState.current.x = 0;
+          fsState.current.y = 0;
+        }
+        applyFsTransform();
+      }
+    } else if (e.touches.length === 1 && fsState.current.scale > 1) {
+      e.preventDefault();
+      const s = fsState.current;
+      s.x = t.initX + (e.touches[0].clientX - t.x);
+      s.y = t.initY + (e.touches[0].clientY - t.y);
+      applyFsTransform();
+    }
+  };
+
+  const onFsTouchEnd = (e: React.TouchEvent) => {
+    const t = fsTouch.current;
+
+    if (fsState.current.scale < 1.5) {
+      fsState.current.scale = 1;
+      fsState.current.x = 0;
+      fsState.current.y = 0;
+      applyFsTransform();
+    }
+
+    if (!t.moved && e.changedTouches.length === 1) {
+      const now = Date.now();
+      if (now - t.lastTap < 300) {
+        const s = fsState.current;
+        if (s.scale > 1.5) {
+          fsState.current = { scale: 1, x: 0, y: 0 };
+        } else {
+          fsState.current = { scale: 3, x: 0, y: 0 };
+        }
+        applyFsTransform();
+        t.lastTap = 0;
+        return;
+      }
+      t.lastTap = now;
+    }
+
+    if (fsState.current.scale <= 1 && e.changedTouches.length === 1 && allPhotos.length > 1) {
+      const dx = e.changedTouches[0].clientX - t.startX;
+      if (Math.abs(dx) > 50) {
+        const dir = dx > 0 ? -1 : 1;
+        goToFsPhoto((photoIndex + dir + allPhotos.length) % allPhotos.length);
+      }
+    }
+
+    t.dist = 0;
+  };
+
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
@@ -420,6 +532,7 @@ function ProductDetailModalRaw({
   const instagramUrl = `https://ig.me/m/${instagram}`;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 animate-fadeIn"
       style={{ background: "rgba(0,0,0,0.7)" }}
@@ -441,7 +554,7 @@ function ProductDetailModalRaw({
         <div className="h-72 sm:h-96 md:h-auto md:w-1/2 md:self-stretch md:min-h-[32rem] shrink-0 bg-surface-container-low relative overflow-hidden">
           {allPhotos.length > 0 ? (
             <>
-              <img src={imgFallback ? allPhotos[photoIndex] : getResizedUrl(allPhotos[photoIndex], "600x600")} srcSet={imgFallback ? undefined : getResizedUrl(allPhotos[photoIndex], "600x600") + " 2x"} alt={product.name} className="w-full h-full object-cover" decoding="async" onError={() => setImgFallback(true)} />
+              <img src={imgFallback ? allPhotos[photoIndex] : getResizedUrl(allPhotos[photoIndex], "600x600")} srcSet={imgFallback ? undefined : getResizedUrl(allPhotos[photoIndex], "600x600") + " 2x"} alt={product.name} className="w-full h-full object-contain md:object-cover cursor-pointer" decoding="async" onClick={() => openFs(allPhotos[photoIndex])} onError={() => setImgFallback(true)} />
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/20 via-transparent to-transparent" />
               {allPhotos.length > 1 && (
                 <>
@@ -657,6 +770,54 @@ function ProductDetailModalRaw({
         </div>
       </div>
     </div>
+
+    {fullscreenImg && (
+      <div
+        className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
+        onClick={closeFs}
+      >
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); closeFs(); }}
+          className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center bg-white/20 backdrop-blur-md text-white hover:bg-white/40 transition-all cursor-pointer"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>close</span>
+        </button>
+
+        {allPhotos.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); goToFsPhoto((photoIndex - 1 + allPhotos.length) % allPhotos.length); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/40 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chevron_left</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); goToFsPhoto((photoIndex + 1) % allPhotos.length); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/40 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>chevron_right</span>
+            </button>
+          </>
+        )}
+
+        <img
+          ref={fsImgRef}
+          src={fullscreenImg}
+          alt={product.name}
+          className="max-w-full max-h-full object-contain select-none"
+          style={{ transform: "translate(0px, 0px) scale(1)", touchAction: "none" }}
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={onFsTouchStart}
+          onTouchMove={onFsTouchMove}
+          onTouchEnd={onFsTouchEnd}
+          draggable={false}
+        />
+      </div>
+    )}
+  </>
   );
 }
 
@@ -688,7 +849,7 @@ export function ProductCard({
             src={fallback ? product.photoURL : getResizedUrl(product.photoURL, "200x200")}
             srcSet={fallback ? undefined : getResizedUrl(product.photoURL, "600x600") + " 2x"}
             alt={product.name}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            className={`w-full h-full object-contain group-hover:scale-105 transition-all duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
             loading={isFirst ? "eager" : "lazy"}
             fetchPriority={isFirst ? "high" : undefined}
             decoding="async"
