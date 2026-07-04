@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import Script from "next/script";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -38,29 +37,34 @@ function ScrollReveal({ children }: { children: React.ReactNode }) {
 }
 
 export default function LandingPage() {
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Sellri",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "Transform your social media into a professional storefront. Create a free store page in 60 seconds.",
+      offers: {
+        "@type": "Offer",
+        price: "149",
+        priceCurrency: "INR",
+      },
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "4.8",
+        ratingCount: "250",
+      },
+    });
+    document.head.appendChild(script);
+    return () => { script.remove(); };
+  }, []);
+
   return (
     <>
-      <Script id="schema-structured-data" type="application/ld+json" strategy="beforeInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "SoftwareApplication",
-          name: "Sellri",
-          applicationCategory: "BusinessApplication",
-          operatingSystem: "Web",
-          description:
-            "Transform your social media into a professional storefront. Create a free store page in 60 seconds.",
-          offers: {
-            "@type": "Offer",
-            price: "149",
-            priceCurrency: "INR",
-          },
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: "4.8",
-            ratingCount: "250",
-          },
-        })}
-      </Script>
       <Navbar />
 
       {/* Hero Section */}

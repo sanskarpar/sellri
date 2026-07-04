@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback, memo } from "react";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useLockBody } from "@/hooks/useLockBody";
-import { getResizedUrl } from "@/lib/images";
+import { getResizedUrl, preloadImage } from "@/lib/images";
 
 export type Product = {
   id: string;
@@ -410,7 +410,7 @@ function ProductDetailModalRaw({
   }
 
   function openFs(imgSrc: string) {
-    setFullscreenImg(imgSrc);
+    setFullscreenImg(getResizedUrl(imgSrc, "600x600"));
     fsState.current = { scale: 1, x: 0, y: 0 };
     document.body.style.overflow = "hidden";
   }
@@ -423,7 +423,7 @@ function ProductDetailModalRaw({
 
   function goToFsPhoto(index: number) {
     setPhotoIndex(index);
-    setFullscreenImg(allPhotos[index]);
+    setFullscreenImg(getResizedUrl(allPhotos[index], "600x600"));
     fsState.current = { scale: 1, x: 0, y: 0 };
   }
 
@@ -522,7 +522,14 @@ function ProductDetailModalRaw({
 
   useEffect(() => {
     setImgFallback(false);
-  }, [photoIndex]);
+    if (allPhotos.length) {
+      preloadImage(getResizedUrl(allPhotos[photoIndex], "600x600"));
+      const next = (photoIndex + 1) % allPhotos.length;
+      const prev = (photoIndex - 1 + allPhotos.length) % allPhotos.length;
+      if (next !== photoIndex) preloadImage(getResizedUrl(allPhotos[next], "600x600"));
+      if (prev !== photoIndex) preloadImage(getResizedUrl(allPhotos[prev], "600x600"));
+    }
+  }, [photoIndex, allPhotos]);
 
   const productUrl = product.slug && storeSlug ? `${window.location.origin}/store/${storeSlug}?product=${product.slug}` : "";
 

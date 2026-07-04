@@ -93,7 +93,7 @@ export default function Navbar({ storefrontNavbar }: { storefrontNavbar?: Storef
           )}
 
           {/* Logo - naturally centered by flex */}
-          <Link href="/" className="block leading-none max-w-[calc(100%-5rem)] md:max-w-none">
+          <div className="block leading-none max-w-[calc(100%-5rem)] md:max-w-none">
             {storefrontNavbar ? (
               logoURL ? (
                 <img src={logoURL} alt="Store" className="object-contain mx-auto" loading="eager" decoding="async" style={{ height: logoHeight, maxWidth: "min(200px, 40vw)" }} />
@@ -112,7 +112,7 @@ export default function Navbar({ storefrontNavbar }: { storefrontNavbar?: Storef
                 priority
               />
             )}
-          </Link>
+          </div>
 
           {/* Right: Track / Sign in */}
           {!isMinimalNav ? (
