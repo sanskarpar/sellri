@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import FooterSection from "@/components/sections/FooterSection";
 import useGoogleFont from "@/hooks/useGoogleFont";
+import { fetchStoreBySlug } from "@/lib/firestore-rest";
 import { POLICY_LABELS, POLICY_DEFAULTS, fillPolicyTemplate, type PolicyType } from "@/lib/policyTemplates";
 
 const VALID_TYPES: PolicyType[] = ["privacy", "terms", "refunds"];
@@ -26,11 +25,9 @@ export default function PolicyPage() {
     if (!VALID_TYPES.includes(type as PolicyType)) { setLoading(false); return; }
 
     (async () => {
-      const userQuery = query(collection(db, "users"), where("slug", "==", slug), limit(1));
-      const userSnap = await getDocs(userQuery);
-      if (userSnap.empty) { setLoading(false); return; }
-      const data = userSnap.docs[0].data() as any;
-      setSeller({ id: userSnap.docs[0].id, ...data });
+      const store = await fetchStoreBySlug(slug);
+      if (!store) { setLoading(false); return; }
+      setSeller({ id: store.id, ...store.data });
       setLoading(false);
     })();
   }, [slug, type]);

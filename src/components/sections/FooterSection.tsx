@@ -72,6 +72,8 @@ export default function FooterSection({
               src={logo}
               alt={storeName}
               className="h-12 w-auto object-contain"
+              loading="lazy"
+              decoding="async"
             />
           )}
           

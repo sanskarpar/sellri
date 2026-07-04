@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { collection, query, where, orderBy, getDocs, limit, doc, addDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import ProductsSection, { ProductDetailModal } from "@/components/sections/ProductsSection";
 import FooterSection from "@/components/sections/FooterSection";
+import { getResizedUrl } from "@/lib/images";
+import { fetchStoreBySlug, fetchSellerProducts } from "@/lib/firestore-rest";
+import { getDb } from "@/lib/lazy-db";
 
 import useGoogleFont from "@/hooks/useGoogleFont";
 import { useLockBody } from "@/hooks/useLockBody";
@@ -198,17 +199,11 @@ export default function StorefrontPage() {
   async function loadStore() {
     setLoading(true);
 
-    const userQuery = query(
-      collection(db, "users"),
-      where("slug", "==", slug),
-      limit(1)
-    );
-    const userSnap = await getDocs(userQuery);
-    if (userSnap.empty) { setLoading(false); return; }
+    const store = await fetchStoreBySlug(slug);
+    if (!store) { setLoading(false); return; }
 
-    const userDoc = userSnap.docs[0];
-    const data = userDoc.data() as any;
-    const sellerId = userDoc.id;
+    const data = store.data;
+    const sellerId = store.id;
 
     // Plan enforcement
     const now = Date.now();
@@ -218,16 +213,20 @@ export default function StorefrontPage() {
       return;
     }
     if (plan === "trial" && data.trialEndsAt) {
-      const trialEnd = data.trialEndsAt.toMillis ? data.trialEndsAt.toMillis() : data.trialEndsAt.seconds * 1000;
+      const trialEnd = typeof data.trialEndsAt === "number" ? data.trialEndsAt : new Date(data.trialEndsAt).getTime();
       if (now > trialEnd) {
+        const db = await getDb();
+        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         await setDoc(doc(db, "users", sellerId), { plan: "expired", updatedAt: serverTimestamp() }, { merge: true });
         window.location.replace("https://sellri.in");
         return;
       }
     }
     if (plan === "paid" && data.subscriptionEndsAt) {
-      const subEnd = data.subscriptionEndsAt.toMillis ? data.subscriptionEndsAt.toMillis() : data.subscriptionEndsAt.seconds * 1000;
+      const subEnd = typeof data.subscriptionEndsAt === "number" ? data.subscriptionEndsAt : new Date(data.subscriptionEndsAt).getTime();
       if (now > subEnd) {
+        const db = await getDb();
+        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         await setDoc(doc(db, "users", sellerId), { plan: "expired", updatedAt: serverTimestamp() }, { merge: true });
         window.location.replace("https://sellri.in");
         return;
@@ -251,26 +250,22 @@ export default function StorefrontPage() {
 
     setSeller(sellerData);
 
-    // Fetch products + load font in parallel (both depend on sellerId)
-    const q = query(
-      collection(db, "users", sellerId, "products"),
-      orderBy("createdAt", "desc")
-    );
-    const [snap] = await Promise.all([
-      getDocs(q),
+    // Fetch products + load font in parallel
+    const [products] = await Promise.all([
+      fetchSellerProducts(sellerId),
       loadStoreFont(sellerData.storefront?.theme?.font || ""),
     ]);
     const list: Product[] = [];
-    snap.forEach((d) => {
-      const p = d.data() as any;
-      if (p.inStock !== false) list.push({ id: d.id, ...p });
-    });
+    for (const doc of products) {
+      const p = doc.data as any;
+      if (p.inStock !== false) list.push({ id: doc.id, ...p });
+    }
     setProducts(list);
 
     // Preload product thumbnails + seller photo in background (don't block render)
     const thumbnails = [
       sellerData.photoURL,
-      ...list.slice(0, 18).map((p) => p.photoURL),
+      ...list.slice(0, 18).map((p) => getResizedUrl(p.photoURL, "200x200")),
     ].filter(Boolean) as string[];
     preloadImages([...new Set(thumbnails)]);
 
@@ -371,6 +366,8 @@ export default function StorefrontPage() {
     codAmount?: number;
   }) => {
     if (!seller) return;
+    const db = await getDb();
+    const { addDoc, collection, serverTimestamp } = await import("firebase/firestore");
     const orderData = {
       reference: `#${params.reference}`,
       paymentId: params.paymentId,
@@ -977,7 +974,7 @@ export default function StorefrontPage() {
     const pageBgType = seller.storefront?.theme?.bgType || "color";
     const pageBgColor = seller.storefront?.theme?.bgColor || "#ffffff";
     const pageBgGradient = seller.storefront?.theme?.bgGradient || "";
-    const pageBgImage = seller.storefront?.theme?.bgImage || "";
+    const pageBgImage = seller.storefront?.theme?.bgImage ? getResizedUrl(seller.storefront.theme.bgImage, "1920") : "";
 
     return (
       <div style={pageFont ? {
@@ -1112,7 +1109,7 @@ export default function StorefrontPage() {
                   <div key={cartItemKey} className="flex gap-4 p-4 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
                     <div className="w-20 h-20 rounded-xl bg-white shrink-0 overflow-hidden shadow-sm border border-outline-variant/10">
                       {item.product.photoURL ? (
-                        <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" />
+                        <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-on-surface-variant/20">
                           <span className="material-symbols-outlined">image</span>
@@ -1205,7 +1202,7 @@ export default function StorefrontPage() {
                   <div key={`${item.product.id}__${item.selectedSize || ""}__${item.selectedColor || ""}`} className="flex gap-3 p-3 rounded-xl bg-surface-container-low/60">
                     <div className="w-16 h-16 rounded-xl bg-white shrink-0 overflow-hidden shadow-sm border border-outline-variant/10">
                       {item.product.photoURL ? (
-                        <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" />
+                        <img src={item.product.photoURL} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-on-surface-variant/20">
                           <span className="material-symbols-outlined">image</span>
@@ -1578,7 +1575,7 @@ export default function StorefrontPage() {
                 <div key={product.id} className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
                   <div className="aspect-[1/1] bg-gradient-to-br from-surface-container-low to-surface overflow-hidden shrink-0 relative">
                     {product.photoURL ? (
-                      <img src={product.photoURL} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                      <img src={product.photoURL} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" decoding="async" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-on-surface-variant/15">
                         <span className="material-symbols-outlined text-5xl">image</span>

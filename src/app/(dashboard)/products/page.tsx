@@ -315,7 +315,7 @@ export default function ProductsPage() {
               {/* Photo */}
               <div className="aspect-[4/3] bg-surface-container-low relative overflow-hidden">
                 {product.photoURL ? (
-                  <img src={product.photoURL} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={product.photoURL} alt={product.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-on-surface-variant/30">
                     <span className="material-symbols-outlined text-5xl">image</span>

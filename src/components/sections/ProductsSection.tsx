@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback, memo } from "react";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useLockBody } from "@/hooks/useLockBody";
+import { getResizedUrl } from "@/lib/images";
 
 export type Product = {
   id: string;
@@ -104,7 +105,7 @@ export default function ProductsSection({
 
   const handleSelectProduct = useCallback((p: Product) => {
     const urls = p.photoURLs?.length ? p.photoURLs : p.photoURL ? [p.photoURL] : [];
-    urls.forEach((url) => { const img = new Image(); img.src = url; });
+    urls.forEach((url) => { const img = new Image(); img.src = getResizedUrl(url, "600x600"); });
     setSelectedProduct(p);
   }, []);
 
@@ -390,12 +391,17 @@ function ProductDetailModalRaw({
   const [copied, setCopied] = useState(false);
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]?.name || "");
   const [selectedColor, setSelectedColor] = useState(product.colors?.[0]?.name || "");
+  const [imgFallback, setImgFallback] = useState(false);
 
   useEffect(() => {
     setQuantity(1);
     setSelectedSize(product.sizes?.[0]?.name || "");
     setSelectedColor(product.colors?.[0]?.name || "");
   }, [product.id, product.sizes, product.colors]);
+
+  useEffect(() => {
+    setImgFallback(false);
+  }, [photoIndex]);
 
   const productUrl = product.slug && storeSlug ? `${window.location.origin}/store/${storeSlug}?product=${product.slug}` : "";
 
@@ -425,7 +431,7 @@ function ProductDetailModalRaw({
         <div className="h-72 sm:h-96 md:h-auto md:w-1/2 md:self-stretch md:min-h-[32rem] shrink-0 bg-surface-container-low relative overflow-hidden">
           {allPhotos.length > 0 ? (
             <>
-              <img src={allPhotos[photoIndex]} alt={product.name} className="w-full h-full object-cover" />
+              <img src={imgFallback ? allPhotos[photoIndex] : getResizedUrl(allPhotos[photoIndex], "600x600")} srcSet={imgFallback ? undefined : getResizedUrl(allPhotos[photoIndex], "600x600") + " 2x"} alt={product.name} className="w-full h-full object-cover" decoding="async" onError={() => setImgFallback(true)} />
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/20 via-transparent to-transparent" />
               {allPhotos.length > 1 && (
                 <>
@@ -653,42 +659,28 @@ export function ProductCard({
   product: Product;
   onSelect: (product: Product) => void;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [fallback, setFallback] = useState(false);
 
   useEffect(() => {
     if (imgRef.current?.complete) setLoaded(true);
   }, []);
 
-  // Preload thumbnail when card enters viewport (carousel images only when tapped)
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          if (product.photoURL) { const img = new Image(); img.src = product.photoURL; }
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "300px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [product.photoURL]);
-
   return (
-    <div ref={cardRef} className="flex flex-col group cursor-pointer" onClick={() => onSelect(product)}>
+    <div className="flex flex-col group cursor-pointer" onClick={() => onSelect(product)}>
       <div className="aspect-square bg-gradient-to-br from-surface-container-low to-surface overflow-hidden rounded-xl relative">
         {product.photoURL ? (
           <img
             ref={imgRef}
-            src={product.photoURL}
+            src={fallback ? product.photoURL : getResizedUrl(product.photoURL, "200x200")}
+            srcSet={fallback ? undefined : getResizedUrl(product.photoURL, "600x600") + " 2x"}
             alt={product.name}
             className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
             loading="lazy"
+            decoding="async"
             onLoad={() => setLoaded(true)}
+            onError={() => setFallback(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-on-surface-variant/15">

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useGoogleFont from "@/hooks/useGoogleFont";
 import { useLockBody } from "@/hooks/useLockBody";
+import { getResizedUrl } from "@/lib/images";
 
 type StorefrontNavbar = {
   bgColor: string;
@@ -27,7 +28,7 @@ export default function Navbar({ storefrontNavbar }: { storefrontNavbar?: Storef
   useLockBody(isMenuOpen);
 
   const bgColor = storefrontNavbar?.bgColor || "#f68f1d";
-  const bgImage = storefrontNavbar?.bgImage || "";
+  const bgImage = storefrontNavbar?.bgImage ? getResizedUrl(storefrontNavbar.bgImage, "1920") : "";
   const logoURL = storefrontNavbar?.logoURL || "";
   const logoHeight = storefrontNavbar?.logoHeight || 36;
   const logoText = storefrontNavbar?.logoText || "";
@@ -95,7 +96,7 @@ export default function Navbar({ storefrontNavbar }: { storefrontNavbar?: Storef
           <Link href="/" className="block leading-none max-w-[calc(100%-5rem)] md:max-w-none">
             {storefrontNavbar ? (
               logoURL ? (
-                <img src={logoURL} alt="Store" className="object-contain mx-auto" style={{ height: logoHeight, maxWidth: "min(200px, 40vw)" }} />
+                <img src={logoURL} alt="Store" className="object-contain mx-auto" loading="eager" decoding="async" style={{ height: logoHeight, maxWidth: "min(200px, 40vw)" }} />
               ) : logoText ? (
                 <span className="block text-center" style={{ fontFamily: `"${logoFont}", serif`, color: logoTextColor, fontSize: `min(${logoHeight}px, 5.5vw)`, fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>
                   {logoText}
