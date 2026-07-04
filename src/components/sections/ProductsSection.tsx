@@ -340,10 +340,11 @@ export default function ProductsSection({
               </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-                  {filtered.map((product) => (
+                  {filtered.map((product, i) => (
                     <ProductCardMemo
                       key={product.id}
                       product={product}
+                      isFirst={i === 0}
                       onSelect={handleSelectProduct}
                     />
                   ))}
@@ -655,9 +656,11 @@ export const ProductDetailModal = memo(ProductDetailModalRaw);
 export function ProductCard({
   product,
   onSelect,
+  isFirst,
 }: {
   product: Product;
   onSelect: (product: Product) => void;
+  isFirst?: boolean;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -677,7 +680,8 @@ export function ProductCard({
             srcSet={fallback ? undefined : getResizedUrl(product.photoURL, "600x600") + " 2x"}
             alt={product.name}
             className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
-            loading="lazy"
+            loading={isFirst ? "eager" : "lazy"}
+            fetchPriority={isFirst ? "high" : undefined}
             decoding="async"
             onLoad={() => setLoaded(true)}
             onError={() => setFallback(true)}

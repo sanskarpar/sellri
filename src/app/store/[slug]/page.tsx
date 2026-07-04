@@ -199,16 +199,32 @@ export default function StorefrontPage() {
   async function loadStore() {
     setLoading(true);
 
+    const cacheKey = `storefront:${slug}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    let usedCache = false;
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setSeller(parsed.seller);
+        setProducts(parsed.products);
+        setLoading(false);
+        usedCache = true;
+      } catch {
+        sessionStorage.removeItem(cacheKey);
+      }
+    }
+
     const store = await fetchStoreBySlug(slug);
-    if (!store) { setLoading(false); return; }
+    if (!store) { if (!usedCache) setLoading(false); return; }
 
     const data = store.data;
     const sellerId = store.id;
 
-    // Plan enforcement
+    // Plan enforcement (fresh data only)
     const now = Date.now();
     const plan = data.plan;
     if (plan === "expired") {
+      sessionStorage.removeItem(cacheKey);
       window.location.replace("https://sellri.in");
       return;
     }
@@ -218,6 +234,7 @@ export default function StorefrontPage() {
         const db = await getDb();
         const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         await setDoc(doc(db, "users", sellerId), { plan: "expired", updatedAt: serverTimestamp() }, { merge: true });
+        sessionStorage.removeItem(cacheKey);
         window.location.replace("https://sellri.in");
         return;
       }
@@ -228,6 +245,7 @@ export default function StorefrontPage() {
         const db = await getDb();
         const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         await setDoc(doc(db, "users", sellerId), { plan: "expired", updatedAt: serverTimestamp() }, { merge: true });
+        sessionStorage.removeItem(cacheKey);
         window.location.replace("https://sellri.in");
         return;
       }
@@ -250,6 +268,16 @@ export default function StorefrontPage() {
 
     setSeller(sellerData);
 
+    // Preload page background image
+    const pageBg = sellerData.storefront?.theme?.bgImage;
+    if (pageBg) {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = getResizedUrl(pageBg, "1920");
+      document.head.appendChild(link);
+    }
+
     // Fetch products + load font in parallel
     const [products] = await Promise.all([
       fetchSellerProducts(sellerId),
@@ -269,7 +297,10 @@ export default function StorefrontPage() {
     ].filter(Boolean) as string[];
     preloadImages([...new Set(thumbnails)]);
 
-    setLoading(false);
+    // Cache for instant repeat visits
+    sessionStorage.setItem(cacheKey, JSON.stringify({ seller: sellerData, products: list }));
+
+    if (!usedCache) setLoading(false);
   }
 
   const whatsappUrl = useCallback((product: Product) => {
