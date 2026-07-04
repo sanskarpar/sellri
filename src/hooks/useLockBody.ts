@@ -2,13 +2,21 @@
 
 import { useEffect } from "react";
 
+let lockCount = 0;
+
 export function useLockBody(locked: boolean) {
   useEffect(() => {
     if (locked) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
+      if (lockCount === 0) {
+        document.body.style.overflow = "hidden";
+      }
+      lockCount++;
       return () => {
-        document.body.style.overflow = prev;
+        lockCount--;
+        if (lockCount <= 0) {
+          lockCount = 0;
+          document.body.style.overflow = "";
+        }
       };
     }
   }, [locked]);
